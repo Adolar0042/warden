@@ -1,4 +1,4 @@
-# warden
+# ![warden](res/banner@2x.png)
 
 Warden does two things for your Git workflow: Git profile management and OAuth-based Git credentials.
 

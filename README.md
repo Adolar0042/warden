@@ -11,6 +11,8 @@ cargo build --release
 Then copy `target/release/warden` to a directory in your PATH, OR
 install it via Cargo.
 ```bash
+cargo install --git https://github.com/adolar0042/warden
+# or if locally cloned
 cargo install --path .
 ```
 **Note that git credential helpers must be installed in a directory in your PATH. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**

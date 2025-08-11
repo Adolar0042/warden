@@ -7,21 +7,20 @@ use crate::keyring::get_keyring_token;
 
 #[instrument(skip(hosts_config))]
 pub fn status(hosts_config: &Hosts) -> Result<()> {
-    let mut hosts = hosts_config.hosts().peekable();
-    if hosts.peek().is_none() {
+    if hosts_config.is_empty() {
         eprintln!("  {} - No credentials found.", "Error".red().bold());
         return Err(anyhow!("No credentials found."));
     }
 
-    for (host, config) in hosts {
+    for (host, config) in hosts_config.iter_sorted() {
         if config.users.is_empty() {
-            eprintln!("{}: no users configured", host.bold());
+            eprintln!("{}: no credentials configured", host.bold());
             continue;
         }
 
         let active_credential = &config.active;
         if active_credential.is_empty() {
-            eprintln!("{}: no active user", host.bold());
+            eprintln!("{}: no active credential", host.bold());
         } else {
             let token = get_keyring_token(active_credential, host);
             if let Ok(token) = token {
@@ -31,10 +30,14 @@ pub fn status(hosts_config: &Hosts) -> Result<()> {
             }
         }
 
-        for credential_name in &config.users {
-            if credential_name == active_credential {
-                continue;
-            }
+        let mut credentials: Vec<&String> = config
+            .users
+            .iter()
+            .filter(|u| *u != active_credential)
+            .collect();
+        credentials.sort();
+
+        for credential_name in credentials {
             let token = get_keyring_token(credential_name, host);
             if let Ok(token) = token {
                 eprintln!("  - {credential_name} ({token})");

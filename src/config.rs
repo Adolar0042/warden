@@ -134,6 +134,17 @@ impl Hosts {
         Ok(toml::to_string_pretty(&self.inner)?)
     }
 
+    /// Returns true if there are no hosts configured.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn iter_sorted(&self) -> impl Iterator<Item = (&str, &HostConfig)> {
+        let mut hosts: Vec<_> = self.inner.iter().collect();
+        hosts.sort_by(|(a, _), (b, _)| a.cmp(b));
+        hosts.into_iter().map(|(k, v)| (k.as_str(), v))
+    }
+
     pub fn get_active_credential(&self, host: &str) -> Option<&str> {
         self.inner.get(host).map(|h| h.active.as_str())
     }
@@ -148,6 +159,7 @@ impl Hosts {
             .is_some_and(|h| h.users.iter().any(|u| u == user))
     }
 
+    /// Get an iterator over all hosts and their configurations.
     pub fn hosts(&self) -> impl Iterator<Item = (&str, &HostConfig)> {
         self.inner.iter().map(|(k, v)| (k.as_str(), v))
     }
@@ -225,5 +237,14 @@ impl Hosts {
     #[expect(dead_code, reason = "Keeping this for future use")]
     pub fn into_inner(self) -> HashMap<String, HostConfig> {
         self.inner
+    }
+}
+
+impl IntoIterator for Hosts {
+    type Item = (String, HostConfig);
+    type IntoIter = std::collections::hash_map::IntoIter<String, HostConfig>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
     }
 }

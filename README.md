@@ -8,18 +8,18 @@ From source, run
 ```bash
 cargo build --release
 ```
-Then copy `target/release/warden` to a directory on your PATH, OR
+Then copy `target/release/warden` to a directory in your PATH, OR
 install it via Cargo.
 ```bash
 cargo install --path .
 ```
-**Note that git credential helpers must be installed in a directory on your PATH. `~/.cargo/bin/` often isn't in path when used by GUI applications.**
+**Note that git credential helpers must be installed in a directory in your PATH. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**
 To ensure it works as expected, additionally link it to a standard location (in this example linux)
 ```bash
 sudo ln -s ~/.cargo/bin/warden /usr/bin/git-credential-warden
 ```
 
-This linking is important! Mainly out of convenience, so you can use `warden` for all commands and git still has it's preferred `git-credential-warden` helper available.
+This linking is important! Mainly out of convenience, so you can use `warden` for all commands and git still has its preferred `git-credential-warden` helper available.
 
 To add shell completions, add the following (or equivalent) to your shell configuration file:
 ```bash
@@ -79,7 +79,7 @@ scopes = ["write:repository", "read:repository"]
 preferred_flow = "authcode"
 ```
 
-If you want to use this purely as a credential helper without profiles, you can set `oauth_only = true` in the `oauth.toml` file. This will make Warden stateless, meaning it won't store tokens in the keyring. Each Git credential request will trigger a fresh OAuth flow.
+If you want to use this purely as a credential helper without profiles, you can set `oauth_only = true` in the `oauth.toml` file. This will make warden stateless, meaning it won't store tokens in the keyring. Each Git credential request will trigger a fresh OAuth flow.
 
 I recommend adding the git credential cache to your `~/.gitconfig` to avoid having to log in for every Git operation:
 ```toml
@@ -92,7 +92,7 @@ If you *don't* want to use warden purely as a credential helper, read on.
 ## Credential management
 
 Warden implements the Git credential-helper protocol.
-When Git needs credentials, it calls Warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username and access token to Git, and stores tokens safely in your system keyring.
+When Git needs credentials, it calls warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username and access token to Git, and stores tokens safely in your system keyring.
 
 To manage credentials, run `warden login` to add a username for a provider and fetch/store a token, `warden logout [--hostname H] [--name USER]` to remove credentials, `warden refresh [--hostname H] [--name USER]` to renew a token, `warden switch [--hostname H] [--name USER]` to change the active account, and `warden status` to review configured hosts, users, and whether a token exists. (These commands are further explained below.)
 
@@ -104,7 +104,7 @@ Run the following command to log in to an OAuth provider:
 ```bash
 warden login
 ```
-You will be prompted to enter a username (defaults to "oauth") and select an OAuth provider from those defined in `oauth.toml`. Warden will then perform the OAuth flow, store your access token in the OS keyring.
+You will be prompted to enter a username (defaults to "oauth") and select an OAuth provider from those defined in `oauth.toml`. Warden will then perform the OAuth flow and store your access token in the OS keyring.
 
 ### Check your configured accounts
 
@@ -208,7 +208,7 @@ This will print the profile's configuration in a TOML-like format, showing all t
 
 ### Repository patterns
 
-Repository patterns let you control how Warden parses repository remotes to extract host, owner, and repo for rule matching. Patterns are evaluated top-to-bottom; the first that matches is used. You configure them in `~/.config/warden/profiles.toml` with `[[patterns]]` entries.
+Repository patterns let you control how warden parses repository remotes to extract host, owner, and repo for rule matching. Patterns are evaluated top-to-bottom; the first that matches is used. You configure them in `~/.config/warden/profiles.toml` with `[[patterns]]` entries.
 
 Each pattern must define a `regex` with at least a named capture group `repo`. Optional named groups are `host`, `owner`, `scheme`, `user`, and `vcs`. You can also provide defaults for any of these fields directly in the pattern. Two optional fields control rendering:
 - `infer = true`: build a canonical URL from the captured/defaulted fields

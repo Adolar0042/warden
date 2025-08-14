@@ -8,13 +8,17 @@ use crate::keyring::get_keyring_token;
 #[instrument(skip(hosts_config))]
 pub fn status(hosts_config: &Hosts) -> Result<()> {
     if hosts_config.is_empty() {
-        eprintln!("  {} - No credentials found.", "Error".red().bold());
+        eprintln!(
+            "  {} - No credentials found. Add credentials by running {}.",
+            "Error".red().bold(),
+            format!("{} login", env!("CARGO_PKG_NAME")).blue()
+        );
         return Err(anyhow!("No credentials found."));
     }
 
     for (host, config) in hosts_config.iter_sorted() {
         if config.users.is_empty() {
-            eprintln!("{}: no credentials configured", host.bold());
+            eprintln!("{}: No credentials found.", host.bold());
             continue;
         }
 

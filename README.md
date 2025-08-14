@@ -253,4 +253,4 @@ owner = "Company"
 
 ## License
 
-This project is licensed under the [GPLv3 License](LICENSE.md). See the LICENSE file for more information.
+This project is licensed under the [GPL-3.0 License](LICENSE.md). See the LICENSE.md file for more information.

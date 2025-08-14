@@ -79,7 +79,6 @@ pub fn logout(
         if (hostname.is_some() && name.is_some()) || filtered_pairs.len() == 1 {
             filtered_pairs[0].clone()
         } else {
-            // Build credentials list for the selector from filtered pairs
             let credentials: Vec<String> = filtered_pairs
                 .iter()
                 .map(|(host, credential_name)| format!("{credential_name} ({host})"))

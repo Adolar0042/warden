@@ -1,8 +1,8 @@
 [package]
 name = "warden"
 authors = ["Adolar0042"]
-version = "1.0.0"
-license = "GPLv3"
+version = "1.0.1"
+license = "GPL-3.0"
 edition = "2024"
 description = "A CLI for Git profiles and OAuth credentials, with rule-based profile selection and a built-in git credential helper."
 repository = "https://github.com/adolar0042/warden"
@@ -32,7 +32,6 @@ keyring = { version = "3.6", features = [
     "vendored",
 ] }
 clap_complete = "4.5.56"
-itertools = "0.14.0"
 regex = "1.11.1"
 serde_with = "3.14.0"
 serde_regex = "1.1.0"

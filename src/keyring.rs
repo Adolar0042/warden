@@ -34,8 +34,20 @@ impl Token {
     }
 }
 
-pub fn store_keyring_token(user: &str, host: &str, token: &str) -> Result<()> {
+fn get_entry(user: &str, host: &str) -> Result<Entry> {
+    #[cfg(not(target_os = "windows"))]
     let entry = Entry::new(format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(), user)?;
+    #[cfg(target_os = "windows")]
+    let entry = Entry::new_with_target(
+        format!("{}:{user}@{host}", env!("CARGO_PKG_NAME")).as_str(),
+        format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
+        user,
+    )?;
+    Ok(entry)
+}
+
+pub fn store_keyring_token(user: &str, host: &str, token: &str) -> Result<()> {
+    let entry = get_entry(user, host)?;
     entry.set_password(token)?;
     #[cfg(target_os = "linux")]
     entry.update_attributes(&HashMap::from([
@@ -43,19 +55,27 @@ pub fn store_keyring_token(user: &str, host: &str, token: &str) -> Result<()> {
             "label",
             format!("{}:{user}@{host}", env!("CARGO_PKG_NAME")).as_str(),
         ),
-        ("application", env!("CARGO_PKG_NAME")),
+        (
+            "application",
+            format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
+        ),
     ]))?;
+    #[cfg(target_os = "windows")]
+    entry.update_attributes(&HashMap::from([(
+        "comment",
+        format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
+    )]))?;
     Ok(())
 }
 
 pub fn erase_keyring_token(user: &str, host: &str) -> Result<()> {
-    let entry = Entry::new(format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(), user)?;
+    let entry = get_entry(user, host)?;
     entry.delete_credential()?;
     Ok(())
 }
 
 pub fn get_keyring_token(user: &str, host: &str) -> Result<Token> {
-    let entry = Entry::new(format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(), user)?;
+    let entry = get_entry(user, host)?;
     let secret = entry
         .get_password()
         .context("Failed to retrieve token from keyring.")?;

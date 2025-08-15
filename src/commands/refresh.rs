@@ -1,115 +1,102 @@
 use anyhow::{Context as _, Result, bail};
-use colored::Colorize as _;
 
+use crate::commands::common::{
+    CredentialPair, collect_all_pairs, filter_pairs, sort_pairs, styled_error_line,
+};
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::{get_keyring_token, store_keyring_token};
-use crate::oauth::get_access_token;
-use crate::utils::THEME;
+use crate::oauth::{get_access_token, refresh_access_token};
+use crate::utils::{THEME, select_index};
 
 pub async fn refresh(
     oauth_config: &OAuthConfig,
     hosts_config: &Hosts,
-    host: Option<&String>,
-    name: Option<&String>,
+    host: Option<&str>,
+    name: Option<&str>,
 ) -> Result<()> {
-    let mut host_user_pairs: Vec<(String, String)> = hosts_config
-        .hosts()
-        .flat_map(|(host, cfg)| {
-            cfg.users
-                .iter()
-                .map(move |username| (host.to_string(), username.clone()))
-        })
-        .collect();
-    // sort by host then by user
-    host_user_pairs.sort_by(|(ha, na), (hb, nb)| ha.cmp(hb).then_with(|| na.cmp(nb)));
-    if host_user_pairs.is_empty() {
-        eprintln!(
-            "  {} - No credentials found to refresh.",
-            "Error".red().bold()
-        );
+    let mut pairs = collect_all_pairs(hosts_config);
+    if pairs.is_empty() {
+        eprintln!("{}", styled_error_line("No credentials found to refresh."));
         bail!("No credentials found to refresh.");
     }
-    // Apply provided filters
-    let mut filtered_pairs = host_user_pairs.clone();
-    if let Some(h) = host {
-        filtered_pairs.retain(|(host, _)| host == h);
-    }
-    if let Some(n) = name {
-        filtered_pairs.retain(|(_, username)| username == n);
-    }
-    if filtered_pairs.is_empty() {
-        match (&host, &name) {
+    sort_pairs(&mut pairs);
+
+    let filtered = filter_pairs(&pairs, host, name);
+
+    if filtered.is_empty() {
+        match (host, name) {
             (Some(h), Some(n)) => {
-                eprintln!(
-                    "  {} - No credentials found for '{n}' on {h}.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found for '{n}' on {h}.");
+                let msg = format!("No credentials found for '{n}' on {h}.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (Some(h), None) => {
-                eprintln!("  {} - No credentials found for {h}.", "Error".red().bold());
-                bail!("No credentials found for {h}.");
+                let msg = format!("No credentials found for {h}.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (None, Some(n)) => {
-                eprintln!(
-                    "  {} - No credentials found for '{n}'.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found for '{n}'.");
+                let msg = format!("No credentials found for '{n}'.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (None, None) => {
-                eprintln!(
-                    "  {} - No credentials found to refresh.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found to refresh.");
+                let msg = "No credentials found to refresh.".to_string();
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
         }
     }
-    // If we have a single pair, refresh it
-    if filtered_pairs.len() == 1 {
-        let (host, username) = filtered_pairs.remove(0);
-        let provider = oauth_config
-            .providers
-            .get(&host)
-            .context("Provider not found")?;
-        let token = get_access_token(provider, oauth_config)
-            .await
-            .context("Failed to get access token")?;
-        store_keyring_token(username.as_str(), &host, token.as_str())
-            .context("Failed to store token in keyring")?;
+
+    let target = if filtered.len() == 1 {
+        filtered[0].clone()
     } else {
-        // If we have multiple pairs, let the user select one
-        let credentials: Vec<String> = filtered_pairs
+        let labels: Vec<String> = filtered
             .iter()
-            .map(|(host, credential_name)| -> String {
-                let token = get_keyring_token(credential_name, host);
-                match token {
-                    Ok(_) => {
-                        format!("{credential_name} ({host})")
-                    },
-                    Err(_) => {
-                        format!("{credential_name} ({host}) - not found in keyring")
-                    },
+            .map(|p| {
+                match get_keyring_token(&p.user, &p.host) {
+                    Ok(_) => format!("{} ({})", p.user, p.host),
+                    Err(_) => format!("{} ({}) - not in keyring", p.user, p.host),
                 }
             })
             .collect();
-        let selection = dialoguer::FuzzySelect::with_theme(&*THEME)
-            .items(&credentials)
-            .with_prompt("Select a credential to refresh")
-            .default(0)
+        let selection = select_index(&labels, "Select a credential to refresh")?;
+        filtered[selection].clone()
+    };
+
+    refresh_one(oauth_config, &target).await
+}
+
+/// Refresh a single credential, use refresh token if present and approved,
+/// otherwise run a full OAuth flow.
+async fn refresh_one(oauth_config: &OAuthConfig, pair: &CredentialPair) -> Result<()> {
+    let provider = oauth_config
+        .providers
+        .get(&pair.host)
+        .context("Provider not found")?;
+
+    if let Ok(token) = get_keyring_token(&pair.user, &pair.host)
+        && token.refresh_token().is_some()
+    {
+        let use_refresh = dialoguer::Confirm::with_theme(&*THEME)
+            .with_prompt("A refresh token is available. Use it?")
+            .default(true)
             .interact()
-            .context("Failed to select credential")?;
-        let (host, username) = &filtered_pairs[selection];
-        let provider = oauth_config
-            .providers
-            .get(host)
-            .context("Provider not found")?;
-        let token = get_access_token(provider, oauth_config)
-            .await
-            .context("Failed to get access token")?;
-        store_keyring_token(username.as_str(), host, token.as_str())
-            .context("Failed to store token in keyring")?;
+            .context("Failed to confirm refresh token usage")?;
+        if use_refresh {
+            let token = refresh_access_token(provider, &token)
+                .await
+                .context("Failed to refresh access token")?;
+            store_keyring_token(pair.user.as_str(), &pair.host, &token)
+                .context("Failed to store refreshed token in keyring")?;
+            return Ok(());
+        }
     }
+
+    let token = get_access_token(provider, oauth_config)
+        .await
+        .context("Failed to get access token")?;
+    store_keyring_token(pair.user.as_str(), &pair.host, &token)
+        .context("Failed to store token in keyring")?;
     Ok(())
 }

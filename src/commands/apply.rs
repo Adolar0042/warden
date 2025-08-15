@@ -10,6 +10,7 @@ use colored::Colorize as _;
 use git2::Repository;
 use tracing::instrument;
 
+use crate::commands::common::styled_error_line;
 use crate::config::ProfileConfig;
 use crate::profile::rule::ProfileRef;
 use crate::profile::url::{Patterns, Url as RepoUrl};
@@ -31,16 +32,13 @@ pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Re
     } else {
         let repo = Repository::open_from_env();
         let Ok(repo) = repo else {
-            eprintln!("  {} - Not a git repository!", "ERROR".red().bold());
+            eprintln!("{}", styled_error_line("Not a git repository!"));
             return Ok(());
         };
 
         let remote = repo.find_remote("origin");
         let Ok(remote) = remote else {
-            eprintln!(
-                "  {} - No remote named 'origin' found.",
-                "ERROR".red().bold()
-            );
+            eprintln!("{}", styled_error_line("No remote named 'origin' found."));
             return Ok(());
         };
         let remote_url = remote.url().expect("No remote url");
@@ -52,7 +50,13 @@ pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Re
         let rule = profile_config.rules.resolve(&url);
         match rule {
             None => {
-                eprintln!("No profile found for [{}].", &url.to_string().bold());
+                eprintln!(
+                    "{}",
+                    styled_error_line(format!(
+                        "No profile found for [{}].",
+                        &url.to_string().bold()
+                    ))
+                );
                 return Ok(());
             },
             Some(rule) => {

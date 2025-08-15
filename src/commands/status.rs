@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 use colored::Colorize as _;
 use tracing::instrument;
 
+use crate::commands::common::styled_error_line;
 use crate::config::Hosts;
 use crate::keyring::get_keyring_token;
 
@@ -9,9 +10,11 @@ use crate::keyring::get_keyring_token;
 pub fn status(hosts_config: &Hosts) -> Result<()> {
     if hosts_config.is_empty() {
         eprintln!(
-            "  {} - No credentials found. Add credentials by running {}.",
-            "Error".red().bold(),
-            format!("{} login", env!("CARGO_PKG_NAME")).blue()
+            "{}",
+            styled_error_line(format!(
+                "No credentials found. Add credentials by running {}.",
+                format!("{} login", env!("CARGO_PKG_NAME")).blue()
+            ))
         );
         bail!("No credentials found.");
     }

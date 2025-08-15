@@ -3401,9 +3401,10 @@ dependencies = [
 
 [[package]]
 name = "warden"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "clap_complete",
  "colored",

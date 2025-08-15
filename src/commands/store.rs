@@ -1,8 +1,9 @@
 use anyhow::{Context as _, Result, bail};
 use tracing::{info, instrument, warn};
 
+use crate::commands::common::styled_error_line;
 use crate::config::OAuthConfig;
-use crate::keyring::store_keyring_token;
+use crate::keyring::{Token, store_keyring_token};
 use crate::utils::parse_credential_request;
 
 #[instrument(skip(oauth_config))]
@@ -15,11 +16,18 @@ pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
     if let Some(username) = &req.username
         && let Some(password) = &req.password
     {
-        store_keyring_token(username, &req.host, password)
+        let token = Token::new(
+            password.clone(),
+            req.oauth_refresh_token,
+            req.password_expiry_utc,
+        );
+        store_keyring_token(username, &req.host, &token)
             .context("Failed to store token in keyring")?;
         Ok(())
     } else {
-        warn!("No username or password provided in request; nothing to store.");
-        bail!("No username or password provided in request; nothing to store.")
+        let msg = "No username or password provided in request; nothing to store.";
+        warn!("{msg}");
+        eprintln!("{}", styled_error_line(msg));
+        bail!(msg)
     }
 }

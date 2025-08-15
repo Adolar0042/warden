@@ -152,8 +152,8 @@ async fn main() -> Result<()> {
             commands::refresh::refresh(
                 &oauth_config,
                 &hosts_config,
-                hostname.as_ref(),
-                name.as_ref(),
+                hostname.as_deref(),
+                name.as_deref(),
             )
             .await
             .context("Failed to refresh credentials")?;

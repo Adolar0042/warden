@@ -9,6 +9,7 @@ use anyhow::{Result, bail};
 use colored::Colorize as _;
 use tracing::instrument;
 
+use crate::commands::common::styled_error_line;
 use crate::config::ProfileConfig;
 
 const INHERIT: &str = "(inherit)";
@@ -16,7 +17,7 @@ const INHERIT: &str = "(inherit)";
 #[instrument(skip(profile_config))]
 pub fn list(short: bool, profile_config: &ProfileConfig) -> Result<()> {
     if profile_config.profiles.is_empty() {
-        eprintln!("  {} - No profiles found.", "Error".red().bold());
+        eprintln!("{}", styled_error_line("No profiles found."));
         bail!("No profiles found.");
     }
     profile_config.profiles.iter().for_each(|(name, profile)| {

@@ -1,9 +1,14 @@
 use std::collections::HashMap;
-use std::io::{self, BufRead as _};
+use std::io::{self, BufRead as _, stdout};
 use std::path::PathBuf;
+use std::process::exit;
 use std::sync::LazyLock;
 
 use anyhow::{Context as _, Result};
+use chrono::{DateTime, Utc};
+use crossterm::cursor::Show;
+use crossterm::execute;
+use dialoguer::FuzzySelect;
 use dialoguer::console::style;
 use dialoguer::theme::ColorfulTheme;
 use tracing::{info, instrument};
@@ -21,6 +26,19 @@ pub static THEME: LazyLock<ColorfulTheme> = LazyLock::new(|| {
     }
 });
 
+pub fn select_index<S: Into<String>>(items: &[String], prompt: S) -> Result<usize> {
+    let _ = ctrlc::set_handler(|| {
+        let _ = execute!(stdout(), Show);
+        exit(130);
+    });
+    FuzzySelect::with_theme(&*THEME)
+        .items(items)
+        .with_prompt(prompt)
+        .default(0)
+        .interact()
+        .context("Failed to select")
+}
+
 /// Represents the fields Git sends to a credential helper.
 #[derive(Debug)]
 pub struct CredentialRequest {
@@ -29,6 +47,8 @@ pub struct CredentialRequest {
     pub _path: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub password_expiry_utc: Option<DateTime<Utc>>,
+    pub oauth_refresh_token: Option<String>,
 }
 
 /// Parses Git's credential helper input from stdin (key=value pairs).
@@ -47,7 +67,19 @@ pub fn parse_credential_request() -> Result<CredentialRequest> {
             map.insert(key.to_string(), value.to_string());
         }
     }
-    info!("{:#?}", &map);
+    info!(
+        "{:#?}",
+        &map.clone()
+            .iter()
+            .map(|(k, v)| {
+                if k == "password" || k == "oauth_refresh_token" {
+                    (k.clone(), "[REDACTED]".to_string())
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect::<HashMap<_, _>>()
+    );
 
     Ok(CredentialRequest {
         _protocol: map
@@ -58,6 +90,12 @@ pub fn parse_credential_request() -> Result<CredentialRequest> {
         _path: map.get("path").cloned(),
         username: map.get("username").cloned(),
         password: map.get("password").cloned(),
+        password_expiry_utc: map
+            .get("password_expiry_utc")
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .and_then(|secs| i64::try_from(secs).ok())
+            .and_then(|ts| DateTime::from_timestamp(ts, 0)),
+        oauth_refresh_token: map.get("oauth_refresh_token").cloned(),
     })
 }
 

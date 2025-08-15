@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::string;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, bail};
+use chrono::Utc;
 use colored::Colorize as _;
 use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, DeviceAuthorizationResponse, DeviceAuthorizationUrl,
@@ -9,9 +11,11 @@ use oauth2::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::time::sleep;
 use tracing::{info, instrument};
 
 use crate::config::{OAuthConfig, ProviderConfig};
+use crate::keyring::Token;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct StoringFields(HashMap<String, Value>);
@@ -19,11 +23,15 @@ struct StoringFields(HashMap<String, Value>);
 impl ExtraDeviceAuthorizationFields for StoringFields {}
 type StoringDeviceAuthorizationResponse = DeviceAuthorizationResponse<StoringFields>;
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "function is long but necessary for device code flow"
+)]
 #[instrument(skip(provider, _config))]
 pub async fn exchange_device_code(
     provider: &ProviderConfig,
     _config: &OAuthConfig,
-) -> Result<String> {
+) -> Result<Token> {
     let auth_url =
         AuthUrl::new(provider.auth_url.clone()).expect("Invalid authorization endpoint URL");
     let token_url = TokenUrl::new(provider.token_url.clone()).expect("Invalid token endpoint URL");
@@ -72,7 +80,15 @@ pub async fn exchange_device_code(
             )
             .await;
         match token {
-            Ok(token) => return Ok(token.access_token().clone().into_secret()),
+            Ok(token) => {
+                let expires_at = token.expires_in().map(|d| Utc::now() + d);
+                let token = Token::new(
+                    token.access_token().secret().clone(),
+                    token.refresh_token().map(|s| s.secret().clone()),
+                    expires_at,
+                );
+                return Ok(token);
+            },
             Err(RequestTokenError::Parse(_, serde_error)) => {
                 if String::from_utf8(serde_error)?.contains("authorization_pending") {
                     // we got a github!
@@ -104,23 +120,33 @@ pub async fn exchange_device_code(
         if let Some(err) = json.get("error").and_then(Value::as_str) {
             match err {
                 "authorization_pending" => {
-                    tokio::time::sleep(details.interval()).await;
+                    sleep(details.interval()).await;
                     continue;
                 },
                 "slow_down" => {
-                    tokio::time::sleep(details.interval() + Duration::from_secs(5)).await;
+                    sleep(details.interval() + Duration::from_secs(5)).await;
                     continue;
                 },
                 other => bail!("Device flow error: {} - {:?}", other, json),
             }
         }
 
-        let access = json
+        let access_token = json
             .get("access_token")
             .and_then(Value::as_str)
             .context("Missing access_token in response")?
             .to_string();
+        let refresh_token = json
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .map(string::ToString::to_string);
+        let expires_in = json
+            .get("expires_in")
+            .and_then(Value::as_u64)
+            .map(Duration::from_secs);
+        let expires_at = expires_in.map(|d| Utc::now() + d);
+        let token = Token::new(access_token, refresh_token, expires_at);
 
-        return Ok(access);
+        return Ok(token);
     }
 }

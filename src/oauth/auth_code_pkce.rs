@@ -1,19 +1,21 @@
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
+use chrono::Utc;
 use colored::Colorize as _;
 use oauth2::basic::BasicClient;
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, Scope,
     TokenResponse as _, TokenUrl,
 };
-use reqwest::Url;
+use reqwest::{ClientBuilder, Url, redirect};
 use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::net::TcpListener;
 use tokio::time::{Instant, sleep};
 use tracing::{error, instrument};
 
 use crate::config::{OAuthConfig, ProviderConfig};
+use crate::keyring::Token;
 
 /// Performs `OAuth2` Authorization Code flow with PKCE to obtain an access
 /// token.
@@ -21,7 +23,7 @@ use crate::config::{OAuthConfig, ProviderConfig};
 pub async fn exchange_auth_code_pkce(
     provider: &ProviderConfig,
     config: &OAuthConfig,
-) -> Result<String> {
+) -> Result<Token> {
     let mut addr = format!("127.0.0.1:{}", config.port.unwrap_or(0));
     let start = Instant::now();
     let listener = loop {
@@ -46,9 +48,9 @@ pub async fn exchange_auth_code_pkce(
 
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-    let http_client = reqwest::ClientBuilder::new()
+    let http_client = ClientBuilder::new()
         // following redirects opens the client up to SSRF vulnerabilities
-        .redirect(reqwest::redirect::Policy::none())
+        .redirect(redirect::Policy::none())
         .build()
         .expect("Client should build");
 
@@ -131,6 +133,11 @@ pub async fn exchange_auth_code_pkce(
             return Err(err.into());
         },
     };
-    let access_token = token.access_token().secret().clone();
-    Ok(access_token)
+    let expires_at = token.expires_in().map(|d| Utc::now() + d);
+    let token = Token::new(
+        token.access_token().secret().clone(),
+        token.refresh_token().map(|rt| rt.secret().clone()),
+        expires_at,
+    );
+    Ok(token)
 }

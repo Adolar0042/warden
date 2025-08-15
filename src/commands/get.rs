@@ -1,10 +1,12 @@
 use anyhow::{Context as _, Result, bail};
+use chrono::{DateTime, Utc};
 use colored::Colorize as _;
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::commands::login::login;
+use crate::commands::{print_token, print_token_checked};
 use crate::config::{Hosts, OAuthConfig};
-use crate::keyring::get_keyring_token;
+use crate::keyring::{Token, get_keyring_token};
 use crate::oauth::get_access_token;
 use crate::utils::parse_credential_request;
 
@@ -21,18 +23,29 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         return Ok(());
     };
 
-    if let Some(oauth_only) = oauth_config.oauth_only
-        && oauth_only
-    {
+    if oauth_config.oauth_only.unwrap_or(false) {
         debug!("OAuth-only mode is enabled.");
+        if let Some(refresh_token) = req.oauth_refresh_token
+            && req.password.is_none()
+        {
+            // access token in cache is expired, but we have a refresh token
+            info!("Using provided refresh token to get access token.");
+            let mut token = Token::new(
+                req.password.unwrap_or_default(),
+                Some(refresh_token),
+                DateTime::<Utc>::from_timestamp(0, 0),
+            );
+            print_token_checked(
+                &mut token,
+                &req.username.unwrap_or_else(|| "oauth".to_string()),
+                provider,
+            )
+            .await
+            .context("Failed to print token")?;
+            return Ok(());
+        }
         let token = get_access_token(provider, &oauth_config).await?;
-
-        // Output in Git's expected format
-        println!(
-            "username={}",
-            req.username.unwrap_or_else(|| "oauth".to_string())
-        );
-        println!("password={token}");
+        print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
         return Ok(());
     }
 
@@ -42,10 +55,12 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         && hosts_config.has_user(&req.host, username)
     {
         info!("Username was in request and in hosts config.");
-        let token = get_keyring_token(username, &req.host)
+        let mut token = get_keyring_token(username, &req.host)
             .context("Failed to retrieve token from keyring")?;
-        println!("username={username}");
-        println!("password={}", token.secret());
+        print_token_checked(&mut token, username, provider)
+            .await
+            .context("Failed to print token")?;
+        return Ok(());
     }
     // if no username is provided, check if there is an active user for the host
     let mut active_user = hosts_config.get_active_credential(&req.host);
@@ -72,10 +87,11 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         .clone()
         .unwrap_or_else(|| active_user.to_string());
 
-    if let Ok(token) = get_keyring_token(&username, &req.host) {
+    if let Ok(mut token) = get_keyring_token(&username, &req.host) {
         info!("Token found in keyring, returning existing credentials.");
-        println!("username={username}");
-        println!("password={}", token.secret());
+        print_token_checked(&mut token, &username, provider)
+            .await
+            .context("Failed to print token")?;
         return Ok(());
     }
 

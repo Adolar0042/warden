@@ -3,6 +3,9 @@ use colored::Colorize as _;
 use dialoguer::FuzzySelect;
 use tracing::instrument;
 
+use crate::commands::common::{
+    collect_all_pairs, filter_pairs, labels_user_host, sort_pairs, styled_error_line,
+};
 use crate::config::Hosts;
 use crate::utils::THEME;
 
@@ -12,112 +15,75 @@ pub fn logout(
     hostname: Option<&String>,
     name: Option<&String>,
 ) -> Result<()> {
-    let mut host_user_pairs: Vec<(String, String)> = hosts_config
-        .hosts()
-        .flat_map(|(host, cfg)| {
-            cfg.users
-                .iter()
-                .map(move |username| (host.to_string(), username.clone()))
-        })
-        .collect();
-
-    // sort by host then by user
-    host_user_pairs.sort_by(|(ha, na), (hb, nb)| ha.cmp(hb).then_with(|| na.cmp(nb)));
-
-    if host_user_pairs.is_empty() {
-        eprintln!(
-            "  {} - No credentials found to logout.",
-            "Error".red().bold()
-        );
+    let mut pairs = collect_all_pairs(hosts_config);
+    if pairs.is_empty() {
+        eprintln!("{}", styled_error_line("No credentials found to logout."));
         bail!("No credentials found to logout.");
     }
+    sort_pairs(&mut pairs);
 
-    // Apply provided filters
-    let mut filtered_pairs = host_user_pairs.clone();
-    if let Some(h) = hostname {
-        filtered_pairs.retain(|(host, _)| host == h);
-    }
-    if let Some(n) = name {
-        filtered_pairs.retain(|(_, username)| username == n);
-    }
-
-    if filtered_pairs.is_empty() {
-        match (&hostname, &name) {
+    let filtered = filter_pairs(
+        &pairs,
+        hostname.map(String::as_str),
+        name.map(String::as_str),
+    );
+    if filtered.is_empty() {
+        match (hostname, name) {
             (Some(h), Some(n)) => {
-                eprintln!(
-                    "  {} - No credentials found for '{n}' on {h}.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found for '{n}' on {h}.")
+                let msg = format!("No credentials found for '{n}' on {h}.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (Some(h), None) => {
-                eprintln!("  {} - No credentials found for {h}.", "Error".red().bold());
-                bail!("No credentials found for {h}.")
+                let msg = format!("No credentials found for {h}.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (None, Some(n)) => {
-                eprintln!(
-                    "  {} - No credentials found for '{n}'.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found for '{n}'.")
+                let msg = format!("No credentials found for '{n}'.");
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
             (None, None) => {
-                // This branch shouldn't be reachable because we already checked the unfiltered
-                // list.
-                eprintln!(
-                    "  {} - No credentials found to logout.",
-                    "Error".red().bold()
-                );
-                bail!("No credentials found to logout.")
+                let msg = "No credentials found to logout.".to_string();
+                eprintln!("{}", styled_error_line(&msg));
+                bail!(msg);
             },
-        };
+        }
     }
-
-    // If we have an exact match (both provided) or only one candidate remains, no
-    // need to prompt
-    let (host, credential_name) =
-        if (hostname.is_some() && name.is_some()) || filtered_pairs.len() == 1 {
-            filtered_pairs[0].clone()
-        } else {
-            let credentials: Vec<String> = filtered_pairs
-                .iter()
-                .map(|(host, credential_name)| format!("{credential_name} ({host})"))
-                .collect();
-
-            let prompt = match (&hostname, &name) {
-                (Some(h), None) => format!("Select a credential to logout on {h}"),
-                (None, Some(n)) => format!("Select a host to logout for '{n}'"),
-                _ => "Select a credential to logout".to_string(),
-            };
-
-            let selection = FuzzySelect::with_theme(&*THEME)
-                .items(&credentials)
-                .with_prompt(prompt)
-                .default(0)
-                .interact()
-                .context("Failed to select host")?;
-
-            filtered_pairs[selection].clone()
+    // decide which credential to operate on
+    let target = if (hostname.is_some() && name.is_some()) || filtered.len() == 1 {
+        filtered[0].clone()
+    } else {
+        let labels = labels_user_host(&filtered);
+        let prompt = match (hostname, name) {
+            (Some(h), None) => format!("Select a credential to logout on {h}"),
+            (None, Some(n)) => format!("Select a host to logout for '{n}'"),
+            _ => "Select a credential to logout".to_string(),
         };
-
+        let selection = FuzzySelect::with_theme(&*THEME)
+            .items(&labels)
+            .with_prompt(prompt)
+            .default(0)
+            .interact()
+            .context("Failed to select host")?;
+        filtered[selection].clone()
+    };
     if !hosts_config
-        .remove_user(&host, &credential_name)
+        .remove_user(&target.host, &target.user)
         .context("Failed to remove credential from hosts configuration")?
     {
-        eprintln!(
-            "  {} - Failed to remove credential {credential_name} for host {host} from hosts \
-             configuration.",
-            "Error".red().bold()
+        let msg = format!(
+            "Failed to remove credential {} for host {} from hosts configuration.",
+            target.user, target.host
         );
-        bail!(
-            "Failed to remove credential {credential_name} for host {host} from hosts \
-             configuration."
-        );
+        eprintln!("{}", styled_error_line(&msg));
+        bail!(msg);
     }
     eprintln!(
         "Successfully logged out {} {}",
-        credential_name,
-        format!("({host})").dimmed()
+        target.user,
+        format!("({})", target.host).dimmed()
     );
     Ok(())
 }

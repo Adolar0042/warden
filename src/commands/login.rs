@@ -67,7 +67,7 @@ pub async fn login(oauth_config: &OAuthConfig, hosts_config: &mut Hosts) -> Resu
         .await
         .context("Failed to get access token")?;
 
-    store_keyring_token(username, providers[selection], token.as_str())
+    store_keyring_token(username, providers[selection], &token)
         .context("Failed to store token in keyring")?;
     Ok(())
 }

@@ -3,34 +3,88 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use anyhow::{Context as _, Result};
+use chrono::{DateTime, Utc};
 use keyring::Entry;
+use tracing::{info, instrument};
 
+use crate::config::ProviderConfig;
+use crate::oauth::refresh_access_token;
+
+#[expect(clippy::struct_field_names, reason = "name is intended")]
 pub struct Token {
-    secret: String,
+    access_token: String,
+    refresh_token: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.secret.len() > 4 {
+        if self.access_token.len() > 4 {
             write!(
                 f,
                 "{}{}",
-                &self.secret[0..4],
-                "*".repeat(min(3, self.secret.len() - 4))
+                &self.access_token[0..4],
+                "*".repeat(min(3, self.access_token.len() - 4))
             )
         } else {
-            write!(f, "{}", "*".repeat(self.secret.len()))
+            write!(f, "{}", "*".repeat(self.access_token.len()))
         }
     }
 }
 
 impl Token {
-    pub const fn new(secret: String) -> Self {
-        Self { secret }
+    pub const fn new(
+        accesss_token: String,
+        refresh_token: Option<String>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        Self {
+            access_token: accesss_token,
+            refresh_token,
+            expires_at,
+        }
     }
 
-    pub fn secret(&self) -> &str {
-        &self.secret
+    pub fn access_token(&self) -> &str {
+        &self.access_token
+    }
+
+    /// Checks if the access token is expired and refreshes it if necessary.
+    /// Returns the access token if it is valid, or refreshes it and returns the
+    /// new token.
+    ///
+    /// Side effect: if the token is refreshed, the current instance is updated
+    /// with the new token.
+    #[instrument(skip(self, provider))]
+    pub async fn access_token_checked(&mut self, provider: &ProviderConfig) -> Result<&str> {
+        if self.expires_at.is_some_and(|dt| dt < Utc::now()) {
+            info!("Access token expired, refreshing...");
+            let new_token = refresh_access_token(provider, self)
+                .await
+                .context("Failed to refresh access token")?;
+            *self = new_token;
+        }
+        Ok(&self.access_token)
+    }
+
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.refresh_token.as_deref()
+    }
+
+    pub fn pack(&self) -> String {
+        serde_json::to_string(&(
+            self.access_token.clone(),
+            self.refresh_token.clone(),
+            self.expires_at,
+        ))
+        .unwrap()
+    }
+
+    pub fn from_string(s: &str) -> Result<Self> {
+        let (access_token, refresh_token, expires_at) =
+            serde_json::from_str::<(String, Option<String>, Option<DateTime<Utc>>)>(s)
+                .context("Failed to parse token")?;
+        Ok(Self::new(access_token, refresh_token, expires_at))
     }
 }
 
@@ -46,9 +100,9 @@ fn get_entry(user: &str, host: &str) -> Result<Entry> {
     Ok(entry)
 }
 
-pub fn store_keyring_token(user: &str, host: &str, token: &str) -> Result<()> {
+pub fn store_keyring_token(user: &str, host: &str, token: &Token) -> Result<()> {
     let entry = get_entry(user, host)?;
-    entry.set_password(token)?;
+    entry.set_password(&token.pack())?;
     #[cfg(target_os = "linux")]
     entry.update_attributes(&HashMap::from([
         (
@@ -79,5 +133,5 @@ pub fn get_keyring_token(user: &str, host: &str) -> Result<Token> {
     let secret = entry
         .get_password()
         .context("Failed to retrieve token from keyring.")?;
-    Ok(Token::new(secret))
+    Token::from_string(&secret)
 }

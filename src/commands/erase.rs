@@ -1,6 +1,7 @@
 use anyhow::{Context as _, Result, bail};
 use tracing::{instrument, warn};
 
+use crate::commands::common::styled_error_line;
 use crate::config::OAuthConfig;
 use crate::keyring::erase_keyring_token;
 use crate::utils::parse_credential_request;
@@ -17,7 +18,9 @@ pub async fn handle_erase(oauth_config: OAuthConfig) -> Result<()> {
             .context("Failed to erase credential from keyring")?;
         Ok(())
     } else {
-        warn!("No username provided in request; nothing to erase.");
-        bail!("No username provided in request; nothing to erase.")
+        let msg = "No username provided in request; nothing to erase.";
+        warn!("{msg}");
+        eprintln!("{}", styled_error_line(msg));
+        bail!(msg)
     }
 }

@@ -1,15 +1,13 @@
-use std::io::stdout;
-use std::process::exit;
-
 use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
-use crossterm::cursor::Show;
-use crossterm::execute;
-use dialoguer::FuzzySelect;
 use tracing::instrument;
 
+use crate::commands::common::{
+    CredentialPair, collect_all_pairs, filter_pairs, labels_host_active, labels_user_host,
+    sort_pairs, styled_error_line,
+};
 use crate::config::Hosts;
-use crate::utils::THEME;
+use crate::utils::select_index;
 
 #[instrument(skip(hosts_config))]
 pub fn switch(
@@ -37,19 +35,6 @@ fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()
     Ok(())
 }
 
-fn select_index(items: &[String], prompt: impl Into<String>) -> Result<usize> {
-    let _ = ctrlc::set_handler(|| {
-        let _ = execute!(stdout(), Show);
-        exit(130);
-    });
-    FuzzySelect::with_theme(&*THEME)
-        .items(items)
-        .with_prompt(prompt)
-        .default(0)
-        .interact()
-        .context("Failed to select")
-}
-
 fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
     let credentials = hosts_config
         .get_users(host)
@@ -57,11 +42,9 @@ fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
         .to_owned();
 
     if credentials.is_empty() {
-        eprintln!(
-            "  {} - No credentials found for host '{host}'",
-            "Error".red().bold()
-        );
-        bail!("No credentials found for host '{host}'");
+        let msg = format!("No credentials found for host '{host}'");
+        eprintln!("{}", styled_error_line(&msg));
+        bail!(msg);
     }
 
     let target = if credentials.len() == 1 {
@@ -84,65 +67,54 @@ fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
 }
 
 fn switch_by_credential(hosts_config: &mut Hosts, credential: &str) -> Result<()> {
-    let mut pairs: Vec<(String, String)> = hosts_config
-        .hosts()
-        .filter(|(_, cfg)| cfg.users.iter().any(|n| n == credential))
-        .map(|(h, c)| (h.to_string(), c.active.clone()))
-        .collect();
+    let mut pairs: Vec<CredentialPair> = collect_all_pairs(hosts_config);
+    pairs = filter_pairs(pairs.iter(), None, Some(credential));
 
     if pairs.is_empty() {
         bail!("No credentials found for '{credential}'.");
     }
 
     if pairs.len() == 1 {
-        let (host, _) = pairs.pop().unwrap();
-        return activate(hosts_config, &host, credential);
+        return activate(hosts_config, &pairs[0].host, credential);
     }
 
-    let labels: Vec<String> = pairs
-        .iter()
-        .map(|(h, active)| format!("{h} ({active})"))
-        .collect();
+    sort_pairs(&mut pairs);
+    let labels = labels_host_active(&pairs, hosts_config);
 
     let selection = select_index(
         &labels,
         format!("Select a host to switch to '{credential}'"),
     )?;
-    let (host, _) = &pairs[selection];
+    let host = &pairs[selection].host;
     activate(hosts_config, host, credential)
 }
 
 fn switch_any(hosts_config: &mut Hosts) -> Result<()> {
-    let mut pairs: Vec<(String, String)> = hosts_config
-        .hosts()
-        .flat_map(|(h, cfg)| cfg.users.iter().map(move |n| (h.to_string(), n.clone())))
-        .collect();
-
+    let mut pairs = collect_all_pairs(hosts_config);
     if pairs.is_empty() {
         bail!("No credentials found to switch.");
     }
+    sort_pairs(&mut pairs);
 
-    pairs.sort_by(|(ha, na), (hb, nb)| ha.cmp(hb).then_with(|| na.cmp(nb)));
-
-    let (host, credential) = if pairs.len() == 1 {
+    // decide which credential to activate
+    let target = if pairs.len() == 1 {
         pairs[0].clone()
     } else if pairs.len() == 2 {
-        let (h1, c1) = &pairs[0];
-        let (h2, c2) = &pairs[1];
-        let active = hosts_config
-            .get_active_credential(h1)
-            .or_else(|| hosts_config.get_active_credential(h2))
-            .context("Failed to get active credential")?;
-        if active == c1 {
-            (h2.clone(), c2.clone())
+        // toggle
+        let (first, second) = (&pairs[0], &pairs[1]);
+        let active_first = hosts_config
+            .get_active_credential(&first.host)
+            .is_some_and(|u| u == first.user);
+        if active_first {
+            second.clone()
         } else {
-            (h1.clone(), c1.clone())
+            first.clone()
         }
     } else {
-        let labels: Vec<String> = pairs.iter().map(|(h, n)| format!("{n} ({h})")).collect();
+        let labels = labels_user_host(&pairs);
         let selection = select_index(&labels, "Select a credential to switch to")?;
         pairs[selection].clone()
     };
 
-    activate(hosts_config, &host, &credential)
+    activate(hosts_config, &target.host, &target.user)
 }

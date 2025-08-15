@@ -91,7 +91,7 @@ pub fn switch(
         } else {
             let selection = dialoguer::FuzzySelect::with_theme(&*THEME)
                 .items(&hosts_with_credential_name)
-                .with_prompt(format!("Select a host to switch for '{credential_name}'"))
+                .with_prompt(format!("Select a host to switch to '{credential_name}'"))
                 .default(0)
                 .interact()
                 .context("Failed to select host")?;
@@ -152,7 +152,7 @@ pub fn switch(
 
             let selection = dialoguer::FuzzySelect::with_theme(&*THEME)
                 .items(&credentials)
-                .with_prompt("Select a credential to switch")
+                .with_prompt("Select a credential to switch to")
                 .default(0)
                 .interact()
                 .context("Failed to select credential")?;

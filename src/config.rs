@@ -118,7 +118,7 @@ impl Hosts {
 
     /// Write the current configuration to the standard config directory.
     pub fn write(&self) -> Result<()> {
-        let config_file = config_dir()?.join("hosts.toml");
+        let config_file = config_dir()?.join(".hosts.toml");
         let toml = self.to_toml_string()?;
         fs::write(config_file, toml).context("Failed to write hosts configuration")?;
         Ok(())

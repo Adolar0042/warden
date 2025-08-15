@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use anyhow::{Error, Result, anyhow};
+use anyhow::{Error, Result, anyhow, bail};
 use regex::Regex;
 use serde::Deserialize;
 use serde_with::DeserializeFromStr;
@@ -289,7 +289,7 @@ impl FromStr for Vcs {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(match s.to_ascii_lowercase().as_str() {
             "git" => Self::Git,
-            _ => return Err(anyhow!("Unknown VCS found: {}", s)),
+            _ => bail!("Unknown VCS found: {}", s),
         })
     }
 }
@@ -316,7 +316,7 @@ impl FromStr for Scheme {
         Ok(match s.to_ascii_lowercase().as_str() {
             "https" => Self::Https,
             "ssh" => Self::Ssh,
-            _ => return Err(anyhow!("Unknown URL scheme found: {}", s)),
+            _ => bail!("Unknown URL scheme found: {}", s),
         })
     }
 }

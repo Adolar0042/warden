@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
 
 use crate::config::{Hosts, OAuthConfig};
@@ -27,7 +27,7 @@ pub async fn refresh(
             "  {} - No credentials found to refresh.",
             "Error".red().bold()
         );
-        return Err(anyhow!("No credentials found to refresh."));
+        bail!("No credentials found to refresh.");
     }
     // Apply provided filters
     let mut filtered_pairs = host_user_pairs.clone();
@@ -44,25 +44,25 @@ pub async fn refresh(
                     "  {} - No credentials found for '{n}' on {h}.",
                     "Error".red().bold()
                 );
-                return Err(anyhow!("No credentials found for '{n}' on {h}."));
+                bail!("No credentials found for '{n}' on {h}.");
             },
             (Some(h), None) => {
                 eprintln!("  {} - No credentials found for {h}.", "Error".red().bold());
-                return Err(anyhow!("No credentials found for {h}."));
+                bail!("No credentials found for {h}.");
             },
             (None, Some(n)) => {
                 eprintln!(
                     "  {} - No credentials found for '{n}'.",
                     "Error".red().bold()
                 );
-                return Err(anyhow!("No credentials found for '{n}'."));
+                bail!("No credentials found for '{n}'.");
             },
             (None, None) => {
                 eprintln!(
                     "  {} - No credentials found to refresh.",
                     "Error".red().bold()
                 );
-                return Err(anyhow!("No credentials found to refresh."));
+                bail!("No credentials found to refresh.");
             },
         }
     }

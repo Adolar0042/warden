@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -60,10 +60,10 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         active_user = hosts_config.get_active_credential(&req.host);
         if active_user.is_none() || active_user.is_some_and(str::is_empty) {
             error!("No active user found for host {}", req.host);
-            return Err(anyhow::anyhow!(
+            bail!(
                 "No active user found for host {}. Please login first.",
                 req.host
-            ));
+            );
         }
     }
     let active_user = active_user.unwrap();

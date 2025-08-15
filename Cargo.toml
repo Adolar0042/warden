@@ -1,7 +1,7 @@
 [package]
 name = "warden"
 authors = ["Adolar0042"]
-version = "1.0.1"
+version = "1.0.2"
 license = "GPL-3.0"
 edition = "2024"
 description = "A CLI for Git profiles and OAuth credentials, with rule-based profile selection and a built-in git credential helper."
@@ -10,20 +10,20 @@ keywords = ["git", "oauth", "credential", "helper", "cli"]
 categories = ["command-line-utilities", "development-tools", "version-control"]
 
 [dependencies]
-anyhow = { version = "1.0.98", features = ["backtrace"] }
-clap = { version = "4.5.40", features = ["derive", "env"] }
-config = { version = "0.15.11", features = ["toml"] }
-oauth2 = "5.0.0"
-open = "5.3.2"
-reqwest = { version = "0.12.20", features = ["json", "rustls-tls"] }
-serde = "1.0.219"
-tokio = { version = "1.45.1", features = ["rt", "rt-multi-thread", "macros"] }
+anyhow = { version = "1.0", features = ["backtrace"] }
+clap = { version = "4.5", features = ["derive", "env"] }
+config = { version = "0.15", features = ["toml"] }
+oauth2 = "5.0"
+open = "5.3"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+serde = "1.0"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "std"] }
-dirs = "6.0.0"
+dirs = "6.0"
 constant_time_eq = "0.4"
-serde_json = "1.0.140"
-colored = "3.0.0"
+serde_json = "1.0"
+colored = "3.0"
 keyring = { version = "3.6", features = [
     "linux-native-sync-persistent",
     "windows-native",
@@ -31,17 +31,16 @@ keyring = { version = "3.6", features = [
     "crypto-rust",
     "vendored",
 ] }
-clap_complete = "4.5.56"
-regex = "1.11.1"
-serde_with = "3.14.0"
-serde_regex = "1.1.0"
-url = "2.5.4"
-toml = "0.9.5"
-git2 = { version = "0.20.2", features = [
-    "vendored-libgit2",
-    "vendored-openssl",
-] }
+clap_complete = "4.5"
+regex = "1.11"
+serde_with = "3.14"
+serde_regex = "1.1"
+url = "2.5"
+toml = "0.9"
+git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
 dialoguer = { version = "0.11.0", features = ["fuzzy-select"] }
+crossterm = "0.29"
+ctrlc = "3.4"
 
 [[bin]]
 name = "warden"
@@ -54,7 +53,7 @@ lto = true
 codegen-units = 1
 incremental = true
 
-# speed  up debug builds
+# speed up debug builds
 [profile.dev]
 incremental = true
 
@@ -162,7 +161,7 @@ try_err = "warn"
 # (0..3).map(|_| x) => iter::repeat(x).take(3)
 map_with_unused_argument_over_ranges = "warn"
 # better be explicit with .clone()
-string_to_string = "warn"
+implicit_clone = "warn"
 # no need to be extra verbose, and makes code easier to modify as well
 redundant_type_annotations = "warn"
 # having multiple layout styles can be confusing

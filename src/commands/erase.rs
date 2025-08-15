@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use tracing::{instrument, warn};
 
 use crate::config::OAuthConfig;
@@ -18,8 +18,6 @@ pub async fn handle_erase(oauth_config: OAuthConfig) -> Result<()> {
         Ok(())
     } else {
         warn!("No username provided in request; nothing to erase.");
-        Err(anyhow::anyhow!(
-            "No username provided in request; nothing to erase."
-        ))
+        bail!("No username provided in request; nothing to erase.")
     }
 }

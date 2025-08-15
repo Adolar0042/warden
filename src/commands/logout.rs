@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
 use dialoguer::FuzzySelect;
 use tracing::instrument;
@@ -29,7 +29,7 @@ pub fn logout(
             "  {} - No credentials found to logout.",
             "Error".red().bold()
         );
-        return Err(anyhow::anyhow!("No credentials found to logout."));
+        bail!("No credentials found to logout.");
     }
 
     // Apply provided filters
@@ -48,18 +48,18 @@ pub fn logout(
                     "  {} - No credentials found for '{n}' on {h}.",
                     "Error".red().bold()
                 );
-                Err(anyhow::anyhow!("No credentials found for '{n}' on {h}."))
+                bail!("No credentials found for '{n}' on {h}.")
             },
             (Some(h), None) => {
                 eprintln!("  {} - No credentials found for {h}.", "Error".red().bold());
-                Err(anyhow::anyhow!("No credentials found for {h}."))
+                bail!("No credentials found for {h}.")
             },
             (None, Some(n)) => {
                 eprintln!(
                     "  {} - No credentials found for '{n}'.",
                     "Error".red().bold()
                 );
-                Err(anyhow::anyhow!("No credentials found for '{n}'."))
+                bail!("No credentials found for '{n}'.")
             },
             (None, None) => {
                 // This branch shouldn't be reachable because we already checked the unfiltered
@@ -68,9 +68,9 @@ pub fn logout(
                     "  {} - No credentials found to logout.",
                     "Error".red().bold()
                 );
-                Err(anyhow::anyhow!("No credentials found to logout."))
+                bail!("No credentials found to logout.")
             },
-        }?;
+        };
     }
 
     // If we have an exact match (both provided) or only one candidate remains, no
@@ -109,10 +109,10 @@ pub fn logout(
              configuration.",
             "Error".red().bold()
         );
-        return Err(anyhow::anyhow!(
+        bail!(
             "Failed to remove credential {credential_name} for host {host} from hosts \
              configuration."
-        ));
+        );
     }
     eprintln!(
         "Successfully logged out {} {}",

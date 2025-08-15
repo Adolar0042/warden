@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use colored::Colorize as _;
 use tracing::instrument;
 
@@ -13,7 +13,7 @@ pub fn status(hosts_config: &Hosts) -> Result<()> {
             "Error".red().bold(),
             format!("{} login", env!("CARGO_PKG_NAME")).blue()
         );
-        return Err(anyhow!("No credentials found."));
+        bail!("No credentials found.");
     }
 
     for (host, config) in hosts_config.iter_sorted() {

@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use tracing::{info, instrument, warn};
 
 use crate::config::OAuthConfig;
@@ -20,8 +20,6 @@ pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
         Ok(())
     } else {
         warn!("No username or password provided in request; nothing to store.");
-        Err(anyhow::anyhow!(
-            "No username or password provided in request; nothing to store."
-        ))
+        bail!("No username or password provided in request; nothing to store.")
     }
 }

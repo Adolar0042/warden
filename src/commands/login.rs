@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, bail};
 use dialoguer::{FuzzySelect, Input};
 use tracing::instrument;
 
@@ -18,17 +18,17 @@ pub async fn login(oauth_config: &OAuthConfig, hosts_config: &mut Hosts) -> Resu
         .context("Failed to read username")?;
     let username = username.trim();
     if username.is_empty() {
-        return Err(anyhow!("Username cannot be empty!"));
+        bail!("Username cannot be empty!");
     }
     let mut providers = oauth_config.providers.keys().collect::<Vec<_>>();
     if providers.is_empty() {
-        return Err(anyhow!(
+        bail!(
             "No OAuth providers configured! Please add at least one provider in {}.",
             config_dir()
                 .context("Failed to get config directory")?
                 .join("oauth.toml")
                 .display()
-        ));
+        );
     }
     providers.sort();
     let selection = FuzzySelect::with_theme(&*THEME)

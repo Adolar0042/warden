@@ -5,7 +5,7 @@
 // Local modifications:
 // Copyright (c) 2025 Adolar0042
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use colored::Colorize as _;
 use tracing::instrument;
 
@@ -17,7 +17,7 @@ const INHERIT: &str = "(inherit)";
 pub fn list(short: bool, profile_config: &ProfileConfig) -> Result<()> {
     if profile_config.profiles.is_empty() {
         eprintln!("  {} - No profiles found.", "Error".red().bold());
-        return Err(anyhow!("No profiles found."));
+        bail!("No profiles found.");
     }
     profile_config.profiles.iter().for_each(|(name, profile)| {
         if short {

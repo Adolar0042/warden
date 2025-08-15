@@ -10,7 +10,7 @@ use std::collections::hash_map::Iter;
 use std::fmt::Formatter;
 use std::ops::Deref;
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, bail};
 use git2::Repository;
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -55,11 +55,11 @@ impl Configs {
                     },
                     Some(Value::Table(_)) => {}, // ok, descend
                     Some(_) => {
-                        return Err(anyhow!(
+                        bail!(
                             "Conflicting key '{}' at '{}': expected a table but found a value",
                             full_key,
                             path
-                        ));
+                        );
                     },
                 }
 
@@ -79,10 +79,10 @@ impl Configs {
             let last = segments[segments.len() - 1];
             match current.get(last) {
                 Some(Value::Table(_)) => {
-                    return Err(anyhow!(
+                    bail!(
                         "Conflicting key '{}': cannot overwrite a table with a value",
                         full_key
-                    ));
+                    );
                 },
                 _ => {
                     current.insert(last.to_string(), Value::String(value.clone()));
@@ -116,10 +116,10 @@ impl Configs {
                 Ok(())
             },
             Value::Array(_) => {
-                Err(anyhow!(
+                bail!(
                     "Arrays are not supported in profile configs at key '{}'",
                     current_key
-                ))
+                )
             },
             // All scalars: coerce to string (git config values are strings)
             other @ (Value::String(_)

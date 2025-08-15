@@ -32,7 +32,7 @@ pub async fn exchange_auth_code_pkce(
             },
             Err(err) => {
                 error!("Failed to bind TcpListener: {}", err);
-                return Err(err).context("TcpListener didn't bind within 5s");
+                return Err(err).context("TcpListener failed to bind within 5s");
             },
         }
     };

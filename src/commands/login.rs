@@ -1,16 +1,27 @@
+use std::io::stdout;
 use std::process::exit;
 
 use anyhow::{Context as _, Result, bail};
-use dialoguer::{FuzzySelect, Input};
+use crossterm::cursor::Show;
+use crossterm::execute;
+use dialoguer::Input;
 use tracing::instrument;
 
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::store_keyring_token;
 use crate::oauth::get_access_token;
-use crate::utils::{THEME, config_dir};
+use crate::utils::{THEME, config_dir, select_index};
 
 #[instrument(skip(oauth_config, hosts_config))]
-pub async fn login(oauth_config: &OAuthConfig, hosts_config: &mut Hosts) -> Result<()> {
+pub async fn login(
+    oauth_config: &OAuthConfig,
+    hosts_config: &mut Hosts,
+    force_device: bool,
+) -> Result<()> {
+    let _ = ctrlc::set_handler(|| {
+        let _ = execute!(stdout(), Show);
+        exit(130);
+    });
     let username: String = Input::with_theme(&*THEME)
         .with_prompt("Username")
         .default("oauth".to_string())
@@ -31,15 +42,14 @@ pub async fn login(oauth_config: &OAuthConfig, hosts_config: &mut Hosts) -> Resu
         );
     }
     providers.sort();
-    let selection = FuzzySelect::with_theme(&*THEME)
-        .items(&providers)
-        .with_prompt("Host")
-        .default(0)
-        .interact()
-        .context("Failed to select host")?;
+    let selection = select_index(&providers, "Host").context("Failed to select host")?;
 
     // if host already has a user under that name, ask for confirmation
     if hosts_config.has_user(providers[selection], username) {
+        let _ = ctrlc::set_handler(|| {
+            let _ = execute!(stdout(), Show);
+            exit(130);
+        });
         let confirm = dialoguer::Confirm::with_theme(&*THEME)
             .with_prompt(format!(
                 "A user with the name '{}' already exists for host '{}'. Do you want to overwrite \
@@ -63,7 +73,7 @@ pub async fn login(oauth_config: &OAuthConfig, hosts_config: &mut Hosts) -> Resu
         .providers
         .get(providers[selection])
         .context("Provider not found")?;
-    let token = get_access_token(provider, oauth_config)
+    let token = get_access_token(provider, oauth_config, force_device)
         .await
         .context("Failed to get access token")?;
 

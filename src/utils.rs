@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::{self, BufRead as _, stdout};
 use std::path::PathBuf;
 use std::process::exit;
@@ -26,7 +27,10 @@ pub static THEME: LazyLock<ColorfulTheme> = LazyLock::new(|| {
     }
 });
 
-pub fn select_index<S: Into<String>>(items: &[String], prompt: S) -> Result<usize> {
+pub fn select_index<S: Into<String>, T: AsRef<str> + Display>(
+    items: &[T],
+    prompt: S,
+) -> Result<usize> {
     let _ = ctrlc::set_handler(|| {
         let _ = execute!(stdout(), Show);
         exit(130);

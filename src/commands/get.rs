@@ -1,17 +1,47 @@
 use anyhow::{Context as _, Result, bail};
 use chrono::{DateTime, Utc};
-use colored::Colorize as _;
 use tracing::{debug, error, info, instrument, warn};
 
+use crate::commands::common::styled_error_line;
 use crate::commands::login::login;
 use crate::commands::{print_token, print_token_checked};
-use crate::config::{Hosts, OAuthConfig};
+use crate::config::{Hosts, OAuthConfig, ProviderConfig};
 use crate::keyring::{Token, get_keyring_token};
-use crate::oauth::get_access_token;
-use crate::utils::parse_credential_request;
+use crate::oauth::{device_code, get_access_token};
+use crate::utils::{CredentialRequest, parse_credential_request};
+
+#[instrument(skip(req, provider))]
+async fn maybe_print_with_refresh_token(
+    req: &CredentialRequest,
+    provider: &ProviderConfig,
+) -> Result<bool> {
+    if let Some(refresh_token) = req.oauth_refresh_token.as_ref()
+        && req.password.is_none()
+    {
+        info!("Using provided refresh token to get access token.");
+        let mut token = Token::new(
+            req.password.clone().unwrap_or_default(),
+            Some(refresh_token.clone()),
+            DateTime::<Utc>::from_timestamp(0, 0),
+        );
+        print_token_checked(
+            &mut token,
+            &req.username.clone().unwrap_or_else(|| "oauth".to_string()),
+            provider,
+        )
+        .await
+        .context("Failed to print token")?;
+        return Ok(true);
+    }
+    Ok(false)
+}
 
 #[instrument(skip(oauth_config, hosts_config))]
-pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> Result<()> {
+pub async fn handle_get(
+    oauth_config: OAuthConfig,
+    hosts_config: &mut Hosts,
+    force_device: bool,
+) -> Result<()> {
     info!("Retrieving credentials...");
     let req = parse_credential_request().context("Failed to parse credential request")?;
     debug!("{:#?}", &req);
@@ -23,33 +53,32 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         return Ok(());
     };
 
-    if oauth_config.oauth_only.unwrap_or(false) {
-        debug!("OAuth-only mode is enabled.");
-        if let Some(refresh_token) = req.oauth_refresh_token
-            && req.password.is_none()
-        {
-            // access token in cache is expired, but we have a refresh token
-            info!("Using provided refresh token to get access token.");
-            let mut token = Token::new(
-                req.password.unwrap_or_default(),
-                Some(refresh_token),
-                DateTime::<Utc>::from_timestamp(0, 0),
-            );
-            print_token_checked(
-                &mut token,
-                &req.username.unwrap_or_else(|| "oauth".to_string()),
-                provider,
-            )
-            .await
-            .context("Failed to print token")?;
+    if force_device {
+        if provider.device_auth_url.is_none() {
+            error!("Device code flow is not supported for this provider.");
+            bail!("Device code flow is not supported for this provider.");
+        }
+        if maybe_print_with_refresh_token(&req, provider).await? {
             return Ok(());
         }
-        let token = get_access_token(provider, &oauth_config).await?;
+        let token = device_code::exchange_device_code(provider, &oauth_config)
+            .await
+            .context("Failed to authenticate with device flow.")?;
         print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
         return Ok(());
     }
 
-    // get request username is not empty and exists in hosts config
+    if oauth_config.oauth_only.unwrap_or(false) {
+        debug!("OAuth-only mode is enabled.");
+        if maybe_print_with_refresh_token(&req, provider).await? {
+            return Ok(());
+        }
+        let token = get_access_token(provider, &oauth_config, force_device).await?;
+        print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
+        return Ok(());
+    }
+
+    // if a username was provided, and we know it, return its credential
     if let Some(username) = &req.username
         && !username.is_empty()
         && hosts_config.has_user(&req.host, username)
@@ -66,9 +95,8 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
     let mut active_user = hosts_config.get_active_credential(&req.host);
     if active_user.is_none_or(str::is_empty) {
         // if there is no active user, prompt the user to input a username and then
-        // perform OAuth
-        // assume first use
-        login(&oauth_config, hosts_config)
+        // perform first use login flow
+        login(&oauth_config, hosts_config, force_device)
             .await
             .context("Failed to login")?;
         *hosts_config = Hosts::load().context("Failed to reload hosts configuration")?;
@@ -82,24 +110,26 @@ pub async fn handle_get(oauth_config: OAuthConfig, hosts_config: &mut Hosts) -> 
         }
     }
     let active_user = active_user.unwrap();
-    let username = req
-        .username
-        .clone()
-        .unwrap_or_else(|| active_user.to_string());
+    let username = req.username.as_deref().unwrap_or(active_user);
 
-    if let Ok(mut token) = get_keyring_token(&username, &req.host) {
-        info!("Token found in keyring, returning existing credentials.");
-        print_token_checked(&mut token, &username, provider)
+    if let Ok(mut token) = get_keyring_token(username, &req.host) {
+        info!(
+            "Using cached credential for '{}' on '{}'.",
+            username, req.host
+        );
+        print_token_checked(&mut token, username, provider)
             .await
             .context("Failed to print token")?;
         return Ok(());
     }
 
+    warn!("No credential found for '{}' on '{}'.", username, req.host);
     eprintln!(
-        "  {} - No credential found for user '{}' on host '{}'.",
-        "Error".red().bold(),
-        username,
-        req.host
+        "{}",
+        styled_error_line(format!(
+            "No credential found for user '{}' on host '{}'.",
+            username, req.host
+        ))
     );
 
     Ok(())

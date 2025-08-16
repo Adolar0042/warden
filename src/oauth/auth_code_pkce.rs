@@ -40,11 +40,13 @@ pub async fn exchange_auth_code_pkce(
     };
     addr = format!("http://{}", listener.local_addr()?);
 
-    let client = BasicClient::new(ClientId::new(provider.client_id.clone()))
-        .set_client_secret(ClientSecret::new(provider.client_secret.clone()))
+    let mut client = BasicClient::new(ClientId::new(provider.client_id.clone()))
         .set_auth_uri(AuthUrl::new(provider.auth_url.clone())?)
         .set_token_uri(TokenUrl::new(provider.token_url.clone())?)
         .set_redirect_uri(oauth2::RedirectUrl::new(addr.clone())?);
+    if let Some(secret) = &provider.client_secret {
+        client = client.set_client_secret(ClientSecret::new(secret.clone()));
+    }
 
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 

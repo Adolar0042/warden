@@ -1,4 +1,9 @@
+use std::io::stdout;
+use std::process::exit;
+
 use anyhow::{Context as _, Result, bail};
+use crossterm::cursor::Show;
+use crossterm::execute;
 
 use crate::commands::common::{
     CredentialPair, collect_all_pairs, filter_pairs, sort_pairs, styled_error_line,
@@ -13,6 +18,7 @@ pub async fn refresh(
     hosts_config: &Hosts,
     host: Option<&str>,
     name: Option<&str>,
+    force_device: bool,
 ) -> Result<()> {
     let mut pairs = collect_all_pairs(hosts_config);
     if pairs.is_empty() {
@@ -64,12 +70,16 @@ pub async fn refresh(
         filtered[selection].clone()
     };
 
-    refresh_one(oauth_config, &target).await
+    refresh_one(oauth_config, &target, force_device).await
 }
 
 /// Refresh a single credential, use refresh token if present and approved,
 /// otherwise run a full OAuth flow.
-async fn refresh_one(oauth_config: &OAuthConfig, pair: &CredentialPair) -> Result<()> {
+async fn refresh_one(
+    oauth_config: &OAuthConfig,
+    pair: &CredentialPair,
+    force_device: bool,
+) -> Result<()> {
     let provider = oauth_config
         .providers
         .get(&pair.host)
@@ -78,6 +88,10 @@ async fn refresh_one(oauth_config: &OAuthConfig, pair: &CredentialPair) -> Resul
     if let Ok(token) = get_keyring_token(&pair.user, &pair.host)
         && token.refresh_token().is_some()
     {
+        let _ = ctrlc::set_handler(|| {
+            let _ = execute!(stdout(), Show);
+            exit(130);
+        });
         let use_refresh = dialoguer::Confirm::with_theme(&*THEME)
             .with_prompt("A refresh token is available. Use it?")
             .default(true)
@@ -93,7 +107,7 @@ async fn refresh_one(oauth_config: &OAuthConfig, pair: &CredentialPair) -> Resul
         }
     }
 
-    let token = get_access_token(provider, oauth_config)
+    let token = get_access_token(provider, oauth_config, force_device)
         .await
         .context("Failed to get access token")?;
     store_keyring_token(pair.user.as_str(), &pair.host, &token)

@@ -1,13 +1,12 @@
 use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
-use dialoguer::FuzzySelect;
 use tracing::instrument;
 
 use crate::commands::common::{
     collect_all_pairs, filter_pairs, labels_user_host, sort_pairs, styled_error_line,
 };
 use crate::config::Hosts;
-use crate::utils::THEME;
+use crate::utils::select_index;
 
 #[instrument(skip(hosts_config))]
 pub fn logout(
@@ -61,12 +60,7 @@ pub fn logout(
             (None, Some(n)) => format!("Select a host to logout for '{n}'"),
             _ => "Select a credential to logout".to_string(),
         };
-        let selection = FuzzySelect::with_theme(&*THEME)
-            .items(&labels)
-            .with_prompt(prompt)
-            .default(0)
-            .interact()
-            .context("Failed to select host")?;
+        let selection = select_index(&labels, prompt).context("Failed to select host")?;
         filtered[selection].clone()
     };
     if !hosts_config

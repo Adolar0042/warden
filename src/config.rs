@@ -15,7 +15,7 @@ use crate::utils::config_dir;
 #[derive(Clone, Debug, Deserialize)]
 pub struct ProviderConfig {
     pub client_id: String,
-    pub client_secret: String,
+    pub client_secret: Option<String>,
     pub auth_url: String,
     pub token_url: String,
     /// Device authorization endpoint (if provider supports device flow)

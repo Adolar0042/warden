@@ -22,6 +22,9 @@ mod utils;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
+    /// Use OAuth device flow or fail
+    #[clap(short, long, global = true)]
+    device: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -102,7 +105,7 @@ async fn main() -> Result<()> {
         Command::Get => {
             let oauth_config = OAuthConfig::load().context("Failed to load OAuth configuration")?;
             let mut hosts_config = Hosts::load().context("Failed to load hosts configuration")?;
-            commands::get::handle_get(oauth_config, &mut hosts_config)
+            commands::get::handle_get(oauth_config, &mut hosts_config, cli.device)
                 .await
                 .context("Failed to handle 'get' command")?;
         },
@@ -137,7 +140,7 @@ async fn main() -> Result<()> {
         Command::Login => {
             let oauth_config = OAuthConfig::load().context("Failed to load OAuth configuration")?;
             let mut hosts_config = Hosts::load().context("Failed to load hosts configuration")?;
-            commands::login::login(&oauth_config, &mut hosts_config)
+            commands::login::login(&oauth_config, &mut hosts_config, cli.device)
                 .await
                 .context("Failed to login")?;
         },
@@ -154,6 +157,7 @@ async fn main() -> Result<()> {
                 &hosts_config,
                 hostname.as_deref(),
                 name.as_deref(),
+                cli.device,
             )
             .await
             .context("Failed to refresh credentials")?;

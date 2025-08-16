@@ -5,10 +5,12 @@ use std::time::Duration;
 use anyhow::{Context as _, Result, bail};
 use chrono::Utc;
 use colored::Colorize as _;
+use oauth2::basic::BasicClient;
 use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, DeviceAuthorizationResponse, DeviceAuthorizationUrl,
     ExtraDeviceAuthorizationFields, RequestTokenError, Scope, TokenResponse as _, TokenUrl,
 };
+use reqwest::{ClientBuilder, redirect};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::time::sleep;
@@ -43,15 +45,17 @@ pub async fn exchange_device_code(
     )
     .expect("Invalid device authorization endpoint URL");
 
-    let device_client = oauth2::basic::BasicClient::new(ClientId::new(provider.client_id.clone()))
-        .set_client_secret(ClientSecret::new(provider.client_secret.clone()))
+    let mut device_client = BasicClient::new(ClientId::new(provider.client_id.clone()))
         .set_auth_uri(auth_url)
         .set_token_uri(token_url.clone())
         .set_device_authorization_url(device_auth_url)
         .set_auth_type(AuthType::RequestBody);
+    if let Some(secret) = &provider.client_secret {
+        device_client = device_client.set_client_secret(ClientSecret::new(secret.clone()));
+    }
 
-    let http_client = reqwest::ClientBuilder::new()
-        .redirect(reqwest::redirect::Policy::none())
+    let http_client = ClientBuilder::new()
+        .redirect(redirect::Policy::none())
         .build()
         .expect("Client should build");
 

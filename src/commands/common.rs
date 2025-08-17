@@ -2,62 +2,66 @@ use colored::Colorize as _;
 
 use crate::config::Hosts;
 
-/// Represents one credential (user) associated with a host.
+/// Represents one credential associated with a host
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialPair {
     pub host: String,
-    pub user: String,
+    pub credential: String,
 }
 
 impl CredentialPair {
     #[inline]
-    pub fn new<S: Into<String>>(host: S, user: S) -> Self {
+    pub fn new<S: Into<String>>(host: S, credential: S) -> Self {
         Self {
             host: host.into(),
-            user: user.into(),
+            credential: credential.into(),
         }
     }
 
-    /// Returns user (host)
+    /// Returns credential (host)
     #[inline]
-    pub fn label_user_host(&self) -> String {
-        format!("{} ({})", self.user, self.host)
+    pub fn label_credential_host(&self) -> String {
+        format!("{} ({})", self.credential, self.host)
     }
 }
 
-/// Collect all (host, user) pairs from the `Hosts` config.
+/// Collect all (host, credential) pairs from the `Hosts` config.
 ///
 /// Unsorted; callers can invoke `sort_pairs` for deterministic ordering.
 pub fn collect_all_pairs(hosts: &Hosts) -> Vec<CredentialPair> {
     hosts
         .hosts()
         .flat_map(|(host, cfg)| {
-            cfg.users
+            cfg.credentials
                 .iter()
                 .cloned()
-                .map(move |user| CredentialPair::new(host.to_string(), user))
+                .map(move |credential| CredentialPair::new(host.to_string(), credential))
         })
         .collect()
 }
 
-/// Sort pairs by (host ASC, user ASC).
+/// Sort pairs by (host ASC, credential ASC).
 pub fn sort_pairs(pairs: &mut [CredentialPair]) {
-    pairs.sort_by(|a, b| a.host.cmp(&b.host).then_with(|| a.user.cmp(&b.user)));
+    pairs.sort_by(|a, b| {
+        a.host
+            .cmp(&b.host)
+            .then_with(|| a.credential.cmp(&b.credential))
+    });
 }
 
-/// Filter pairs by optional host and/or user constraints.
+/// Filter pairs by optional host and/or credential constraints.
 ///
 /// If both filters are `None`, returns the original slice cloned.
 /// If a filter removes all pairs, the returned vec is empty
 pub fn filter_pairs<'a, T: IntoIterator<Item = &'a CredentialPair>>(
     pairs: T,
     host: Option<&str>,
-    user: Option<&str>,
+    credential: Option<&str>,
 ) -> Vec<CredentialPair> {
     pairs
         .into_iter()
         .filter(|p| host.is_none_or(|h| p.host == h))
-        .filter(|p| user.is_none_or(|u| p.user == u))
+        .filter(|p| credential.is_none_or(|c| p.credential == c))
         .cloned()
         .collect()
 }
@@ -68,9 +72,12 @@ pub fn styled_error_line<T: AsRef<str>>(msg: T) -> String {
     format!("  {} - {}", "Error".red().bold(), msg.as_ref())
 }
 
-/// Turn a slice of `CredentialPair` into "user (host)" labels
-pub fn labels_user_host(pairs: &[CredentialPair]) -> Vec<String> {
-    pairs.iter().map(CredentialPair::label_user_host).collect()
+/// Turn a slice of `CredentialPair` into "credential (host)" labels
+pub fn labels_credential_host(pairs: &[CredentialPair]) -> Vec<String> {
+    pairs
+        .iter()
+        .map(CredentialPair::label_credential_host)
+        .collect()
 }
 
 #[expect(
@@ -93,7 +100,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{HostConfig, Hosts};
+    use crate::config::Hosts;
+    use crate::config::hosts::HostConfig;
 
     fn hosts_fixture() -> Hosts {
         Hosts::from_map(HashMap::from([
@@ -101,14 +109,14 @@ mod tests {
                 "github.com".to_string(),
                 HostConfig {
                     active: "alice".into(),
-                    users: vec!["alice".into(), "bob".into()],
+                    credentials: vec!["alice".into(), "bob".into()],
                 },
             ),
             (
                 "gitlab.com".to_string(),
                 HostConfig {
                     active: "carol".into(),
-                    users: vec!["carol".into()],
+                    credentials: vec!["carol".into()],
                 },
             ),
         ]))
@@ -144,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_pairs_by_user() {
+    fn test_filter_pairs_by_credential() {
         let h = hosts_fixture();
         let all = collect_all_pairs(&h);
         let filtered = filter_pairs(&all, None, Some("carol"));
@@ -152,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_pairs_by_host_and_user() {
+    fn test_filter_pairs_by_host_and_credential() {
         let h = hosts_fixture();
         let all = collect_all_pairs(&h);
         let filtered = filter_pairs(&all, Some("github.com"), Some("bob"));
@@ -164,7 +172,7 @@ mod tests {
         let h = hosts_fixture();
         let mut pairs = collect_all_pairs(&h);
         sort_pairs(&mut pairs);
-        let labels = labels_user_host(&pairs);
+        let labels = labels_credential_host(&pairs);
         assert!(labels.iter().any(|l| l == "alice (github.com)"));
     }
 

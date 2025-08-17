@@ -3,7 +3,7 @@ use colored::Colorize as _;
 use tracing::instrument;
 
 use crate::commands::common::{
-    CredentialPair, collect_all_pairs, filter_pairs, labels_host_active, labels_user_host,
+    CredentialPair, collect_all_pairs, filter_pairs, labels_credential_host, labels_host_active,
     sort_pairs, styled_error_line,
 };
 use crate::config::Hosts;
@@ -37,7 +37,7 @@ fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()
 
 fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
     let credentials = hosts_config
-        .get_users(host)
+        .get_credentials(host)
         .context(format!("Failed to get credentials for host '{host}'"))?
         .to_owned();
 
@@ -104,17 +104,17 @@ fn switch_any(hosts_config: &mut Hosts) -> Result<()> {
         let (first, second) = (&pairs[0], &pairs[1]);
         let active_first = hosts_config
             .get_active_credential(&first.host)
-            .is_some_and(|u| u == first.user);
+            .is_some_and(|u| u == first.credential);
         if active_first {
             second.clone()
         } else {
             first.clone()
         }
     } else {
-        let labels = labels_user_host(&pairs);
+        let labels = labels_credential_host(&pairs);
         let selection = select_index(&labels, "Select a credential to switch to")?;
         pairs[selection].clone()
     };
 
-    activate(hosts_config, &target.host, &target.user)
+    activate(hosts_config, &target.host, &target.credential)
 }

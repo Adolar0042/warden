@@ -70,7 +70,8 @@ token_url = "https://github.com/login/oauth/access_token"
 # optional, for device flow
 device_auth_url = "https://github.com/login/device/code"
 scopes = ["repo", "read:org", "write:org", "workflow"]
-# "device" or "authcode", "device" requires device_auth_url to be set
+# "auto", "device" or "authcode", "device" requires device_auth_url to be set
+# "auto" will attempt device flow first if supported, then fall back to auth code flow
 preferred_flow = "authcode"
 
 [providers."gitlab.com"]
@@ -89,7 +90,64 @@ scopes = ["write:repository", "read:repository"]
 preferred_flow = "authcode"
 ```
 
-If you want to use this purely as a credential helper without profiles, you can set `oauth_only = true` in the `oauth.toml` file. This will make warden stateless, meaning it won't store tokens in the keyring. Each Git credential request will trigger a fresh OAuth flow.
+#### Configure or Override Providers via `git config`
+
+You can configure (or override) OAuth providers without editing `oauth.toml` by using specially named git config keys. This works for both global and per‑repository configuration:
+
+```bash
+# Global (system/user) provider definition
+git config --global credential.https://git.example.com.oauthClientId YOUR_CLIENT_ID
+git config --global credential.https://git.example.com.oauthAuthURL /oauth/authorize
+git config --global credential.https://git.example.com.oauthTokenURL /oauth/token
+git config --global credential.https://git.example.com.oauthDeviceAuthURL /oauth/authorize_device
+git config --global credential.https://git.example.com.oauthScopes "read_repository write_repository"
+git config --global credential.https://git.example.com.oauthPreferredFlow authcode
+# Optional secret (if the provider requires one)
+git config --global credential.https://git.example.com.oauthClientSecret YOUR_CLIENT_SECRET
+```
+
+Per‑repository overrides (placed in that repo’s `.git/config`) automatically take precedence over the same keys defined globally:
+
+```bash
+# Inside a repository
+git config credential.https://git.example.com.oauthScopes "read_repository"
+```
+
+Supported (case‑insensitive) suffixes after `.oauth`:
+
+- `ClientId`
+- `ClientSecret`
+- `AuthURL`
+- `TokenURL`
+- `DeviceAuthURL`
+- `PreferredFlow`  (values: `auto`, `device`, `authcode`)
+- `Scopes` (whitespace or comma separated list, may be omitted or empty)
+
+##### Rules and Behavior
+
+Precedence (later overrides earlier per field)
+
+- `oauth.toml`
+- global/system git config
+- repo‑local git config
+
+`<base>` (between `credential.` and `.oauth...`) can include a scheme (`https://git.example.com`). If endpoint values start with `/`, they are joined to the base (e.g. `/oauth/token` -> `https://git.example.com/oauth/token`).
+If `<base>` omits a scheme (e.g. `git.example.com`), `https://` is assumed when joining relative paths.
+
+Invalid or incomplete provider entries (missing `client_id`, invalid URLs, etc) are discarded with a warning, exiting entirely if none are valid.
+
+You can mix file and git config: git config can override just one field (for example rotate a `client_id`) without duplicating the whole provider.
+
+Example minimal provider entirely from git config (no `oauth.toml` needed):
+
+```bash
+git config --global credential.https://code.example.com.oauthClientId 123456
+git config --global credential.https://code.example.com.oauthAuthURL https://code.example.com/oauth/authorize
+git config --global credential.https://code.example.com.oauthTokenURL https://code.example.com/oauth/token
+git config --global credential.https://code.example.com.oauthScopes "repo"
+```
+
+If you want to use this purely as a credential helper without profiles, set `oauth-only = true` either in `oauth.toml` or via git config under a `[warden]` section (e.g. `git config --global warden.oauth-only true`). This makes warden stateless, it will not store tokens in the keyring and each Git credential request triggers a fresh OAuth flow.
 
 I recommend adding the git credential cache to your `~/.gitconfig` to avoid having to log in for every Git operation:
 

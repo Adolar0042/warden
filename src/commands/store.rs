@@ -13,7 +13,7 @@ pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
     }
     info!("Storing credentials...");
     let req = parse_credential_request().context("Failed to parse credential request")?;
-    if let Some(username) = &req.username
+    if let Some(credential) = &req.username
         && let Some(password) = &req.password
     {
         let token = Token::new(
@@ -21,7 +21,7 @@ pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
             req.oauth_refresh_token,
             req.password_expiry_utc,
         );
-        store_keyring_token(username, &req.host, &token)
+        store_keyring_token(credential, &req.host, &token)
             .context("Failed to store token in keyring")?;
         Ok(())
     } else {

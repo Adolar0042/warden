@@ -3,7 +3,7 @@ use colored::Colorize as _;
 use tracing::instrument;
 
 use crate::commands::common::{
-    collect_all_pairs, filter_pairs, labels_user_host, sort_pairs, styled_error_line,
+    collect_all_pairs, filter_pairs, labels_credential_host, sort_pairs, styled_error_line,
 };
 use crate::config::Hosts;
 use crate::utils::select_index;
@@ -54,7 +54,7 @@ pub fn logout(
     let target = if (hostname.is_some() && name.is_some()) || filtered.len() == 1 {
         filtered[0].clone()
     } else {
-        let labels = labels_user_host(&filtered);
+        let labels = labels_credential_host(&filtered);
         let prompt = match (hostname, name) {
             (Some(h), None) => format!("Select a credential to logout on {h}"),
             (None, Some(n)) => format!("Select a host to logout for '{n}'"),
@@ -64,19 +64,19 @@ pub fn logout(
         filtered[selection].clone()
     };
     if !hosts_config
-        .remove_user(&target.host, &target.user)
+        .remove_credential(&target.host, &target.credential)
         .context("Failed to remove credential from hosts configuration")?
     {
         let msg = format!(
             "Failed to remove credential {} for host {} from hosts configuration.",
-            target.user, target.host
+            target.credential, target.host
         );
         eprintln!("{}", styled_error_line(&msg));
         bail!(msg);
     }
     eprintln!(
         "Successfully logged out {} {}",
-        target.user,
+        target.credential,
         format!("({})", target.host).dimmed()
     );
     Ok(())

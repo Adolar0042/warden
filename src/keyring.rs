@@ -88,26 +88,29 @@ impl Token {
     }
 }
 
-fn get_entry(user: &str, host: &str) -> Result<Entry> {
+fn get_entry(credential: &str, host: &str) -> Result<Entry> {
     #[cfg(not(target_os = "windows"))]
-    let entry = Entry::new(format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(), user)?;
+    let entry = Entry::new(
+        format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
+        credential,
+    )?;
     #[cfg(target_os = "windows")]
     let entry = Entry::new_with_target(
-        format!("{}:{user}@{host}", env!("CARGO_PKG_NAME")).as_str(),
+        format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
         format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
-        user,
+        credential,
     )?;
     Ok(entry)
 }
 
-pub fn store_keyring_token(user: &str, host: &str, token: &Token) -> Result<()> {
-    let entry = get_entry(user, host)?;
+pub fn store_keyring_token(credential: &str, host: &str, token: &Token) -> Result<()> {
+    let entry = get_entry(credential, host)?;
     entry.set_password(&token.pack())?;
     #[cfg(target_os = "linux")]
     entry.update_attributes(&HashMap::from([
         (
             "label",
-            format!("{}:{user}@{host}", env!("CARGO_PKG_NAME")).as_str(),
+            format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
         ),
         (
             "application",
@@ -122,14 +125,14 @@ pub fn store_keyring_token(user: &str, host: &str, token: &Token) -> Result<()> 
     Ok(())
 }
 
-pub fn erase_keyring_token(user: &str, host: &str) -> Result<()> {
-    let entry = get_entry(user, host)?;
+pub fn erase_keyring_token(credential: &str, host: &str) -> Result<()> {
+    let entry = get_entry(credential, host)?;
     entry.delete_credential()?;
     Ok(())
 }
 
-pub fn get_keyring_token(user: &str, host: &str) -> Result<Token> {
-    let entry = get_entry(user, host)?;
+pub fn get_keyring_token(credential: &str, host: &str) -> Result<Token> {
+    let entry = get_entry(credential, host)?;
     let secret = entry
         .get_password()
         .context("Failed to retrieve token from keyring.")?;

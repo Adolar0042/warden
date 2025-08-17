@@ -13,8 +13,8 @@ pub async fn handle_erase(oauth_config: OAuthConfig) -> Result<()> {
     }
     tracing::info!("Erasing credentials...");
     let req = parse_credential_request().context("Failed to parse credential request")?;
-    if let Some(username) = &req.username {
-        erase_keyring_token(username, &req.host)
+    if let Some(credential) = &req.username {
+        erase_keyring_token(credential, &req.host)
             .context("Failed to erase credential from keyring")?;
         Ok(())
     } else {

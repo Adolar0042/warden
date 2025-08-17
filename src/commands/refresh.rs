@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::io::stderr;
 use std::process::exit;
 
 use anyhow::{Context as _, Result, bail};
@@ -60,9 +60,9 @@ pub async fn refresh(
         let labels: Vec<String> = filtered
             .iter()
             .map(|p| {
-                match get_keyring_token(&p.user, &p.host) {
-                    Ok(_) => format!("{} ({})", p.user, p.host),
-                    Err(_) => format!("{} ({}) - not in keyring", p.user, p.host),
+                match get_keyring_token(&p.credential, &p.host) {
+                    Ok(_) => format!("{} ({})", p.credential, p.host),
+                    Err(_) => format!("{} ({}) - not in keyring", p.credential, p.host),
                 }
             })
             .collect();
@@ -85,11 +85,11 @@ async fn refresh_one(
         .get(&pair.host)
         .context("Provider not found")?;
 
-    if let Ok(token) = get_keyring_token(&pair.user, &pair.host)
+    if let Ok(token) = get_keyring_token(&pair.credential, &pair.host)
         && token.refresh_token().is_some()
     {
         let _ = ctrlc::set_handler(|| {
-            let _ = execute!(stdout(), Show);
+            let _ = execute!(stderr(), Show);
             exit(130);
         });
         let use_refresh = dialoguer::Confirm::with_theme(&*THEME)
@@ -101,7 +101,7 @@ async fn refresh_one(
             let token = refresh_access_token(provider, &token)
                 .await
                 .context("Failed to refresh access token")?;
-            store_keyring_token(pair.user.as_str(), &pair.host, &token)
+            store_keyring_token(pair.credential.as_str(), &pair.host, &token)
                 .context("Failed to store refreshed token in keyring")?;
             return Ok(());
         }
@@ -110,7 +110,7 @@ async fn refresh_one(
     let token = get_access_token(provider, oauth_config, force_device)
         .await
         .context("Failed to get access token")?;
-    store_keyring_token(pair.user.as_str(), &pair.host, &token)
+    store_keyring_token(pair.credential.as_str(), &pair.host, &token)
         .context("Failed to store token in keyring")?;
     Ok(())
 }

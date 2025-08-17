@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::io::{self, BufRead as _, stdout};
+use std::io::{self, BufRead as _, stderr};
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::LazyLock;
@@ -32,7 +32,7 @@ pub fn select_index<S: Into<String>, T: AsRef<str> + Display>(
     prompt: S,
 ) -> Result<usize> {
     let _ = ctrlc::set_handler(|| {
-        let _ = execute!(stdout(), Show);
+        let _ = execute!(stderr(), Show);
         exit(130);
     });
     FuzzySelect::with_theme(&*THEME)

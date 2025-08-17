@@ -59,9 +59,16 @@ pub async fn exchange_device_code(
         .build()
         .expect("Client should build");
 
-    let details: StoringDeviceAuthorizationResponse = device_client
-        .exchange_device_code()
-        .add_scope(Scope::new(provider.scopes.join(" ")))
+    // Build device authorization request, adding scopes only if present
+    let mut device_auth_req = device_client.exchange_device_code();
+    if let Some(scopes) = &provider.scopes
+        && !scopes.is_empty()
+    {
+        for s in scopes {
+            device_auth_req = device_auth_req.add_scope(Scope::new(s.clone()));
+        }
+    }
+    let details: StoringDeviceAuthorizationResponse = device_auth_req
         .request_async(&http_client)
         .await
         .context("Failed to request device authorization codes")?;
@@ -69,7 +76,7 @@ pub async fn exchange_device_code(
     let _ = open::that(details.verification_uri().to_string());
 
     eprintln!(
-        "Beep Boop! Open this URL in your browser\n{}\nand enter the code {}\n",
+        " Beep Boop! Open this URL in your browser\n {}\n and enter the code {}",
         details.verification_uri().bold(),
         details.user_code().secret().bold()
     );

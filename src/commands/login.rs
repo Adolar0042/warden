@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::io::stderr;
 use std::process::exit;
 
 use anyhow::{Context as _, Result, bail};
@@ -19,17 +19,17 @@ pub async fn login(
     force_device: bool,
 ) -> Result<()> {
     let _ = ctrlc::set_handler(|| {
-        let _ = execute!(stdout(), Show);
+        let _ = execute!(stderr(), Show);
         exit(130);
     });
-    let username: String = Input::with_theme(&*THEME)
-        .with_prompt("Username")
+    let credential_name: String = Input::with_theme(&*THEME)
+        .with_prompt("Credential Name")
         .default("oauth".to_string())
         .interact_text()
-        .context("Failed to read username")?;
-    let username = username.trim();
-    if username.is_empty() {
-        bail!("Username cannot be empty!");
+        .context("Failed to read credential name")?;
+    let credential_name = credential_name.trim();
+    if credential_name.is_empty() {
+        bail!("Credential name cannot be empty!");
     }
     let mut providers = oauth_config.providers.keys().collect::<Vec<_>>();
     if providers.is_empty() {
@@ -44,17 +44,17 @@ pub async fn login(
     providers.sort();
     let selection = select_index(&providers, "Host").context("Failed to select host")?;
 
-    // if host already has a user under that name, ask for confirmation
-    if hosts_config.has_user(providers[selection], username) {
+    // if host already has a credential under that name, ask for confirmation
+    if hosts_config.has_credential(providers[selection], credential_name) {
         let _ = ctrlc::set_handler(|| {
-            let _ = execute!(stdout(), Show);
+            let _ = execute!(stderr(), Show);
             exit(130);
         });
         let confirm = dialoguer::Confirm::with_theme(&*THEME)
             .with_prompt(format!(
-                "A user with the name '{}' already exists for host '{}'. Do you want to overwrite \
-                 it?",
-                username, providers[selection]
+                "A credential with the name '{}' already exists for host '{}'. Do you want to \
+                 overwrite it?",
+                credential_name, providers[selection]
             ))
             .default(false)
             .wait_for_newline(true)
@@ -63,10 +63,6 @@ pub async fn login(
         if !confirm {
             exit(1);
         }
-    } else {
-        hosts_config
-            .add_user(providers[selection], username)
-            .context("Failed to add user to hosts configuration")?;
     }
 
     let provider = oauth_config
@@ -77,7 +73,10 @@ pub async fn login(
         .await
         .context("Failed to get access token")?;
 
-    store_keyring_token(username, providers[selection], &token)
+    store_keyring_token(credential_name, providers[selection], &token)
         .context("Failed to store token in keyring")?;
+    hosts_config
+        .add_credential(providers[selection], credential_name)
+        .context("Failed to add credential to hosts state")?;
     Ok(())
 }

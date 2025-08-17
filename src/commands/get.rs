@@ -79,38 +79,42 @@ pub async fn handle_get(
     }
 
     // if a username was provided, and we know it, return its credential
-    if let Some(username) = &req.username
-        && !username.is_empty()
-        && hosts_config.has_user(&req.host, username)
+    if let Some(credential) = &req.username
+        && !credential.is_empty()
+        && hosts_config.has_credential(&req.host, credential)
     {
         info!("Username was in request and in hosts config.");
-        let mut token = get_keyring_token(username, &req.host)
+        let mut token = get_keyring_token(credential, &req.host)
             .context("Failed to retrieve token from keyring")?;
-        print_token_checked(&mut token, username, provider)
+        print_token_checked(&mut token, credential, provider)
             .await
             .context("Failed to print token")?;
         return Ok(());
     }
     // if no username is provided, check if there is an active user for the host
-    let mut active_user = hosts_config.get_active_credential(&req.host);
-    if active_user.is_none_or(str::is_empty) {
-        // if there is no active user, prompt the user to input a username and then
-        // perform first use login flow
+    let mut active_credential = hosts_config.get_active_credential(&req.host);
+    if active_credential.is_none_or(str::is_empty) {
+        // if there is no active credential, prompt the user to input a credential name
+        // and then perform first use login flow
+        eprintln!(
+            " No active credential found for host {}.\n Please login first.",
+            req.host
+        );
         login(&oauth_config, hosts_config, force_device)
             .await
             .context("Failed to login")?;
         *hosts_config = Hosts::load().context("Failed to reload hosts configuration")?;
-        active_user = hosts_config.get_active_credential(&req.host);
-        if active_user.is_none() || active_user.is_some_and(str::is_empty) {
-            error!("No active user found for host {}", req.host);
+        active_credential = hosts_config.get_active_credential(&req.host);
+        if active_credential.is_none() || active_credential.is_some_and(str::is_empty) {
+            error!("No active credential found for host {}", req.host);
             bail!(
-                "No active user found for host {}. Please login first.",
+                "No active credential found for host {}. Please login first.",
                 req.host
             );
         }
     }
-    let active_user = active_user.unwrap();
-    let username = req.username.as_deref().unwrap_or(active_user);
+    let active_credential = active_credential.unwrap();
+    let username = req.username.as_deref().unwrap_or(active_credential);
 
     if let Ok(mut token) = get_keyring_token(username, &req.host) {
         info!(

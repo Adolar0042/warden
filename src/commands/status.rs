@@ -20,7 +20,7 @@ pub fn status(hosts_config: &Hosts) -> Result<()> {
     }
 
     for (host, config) in hosts_config.iter_sorted() {
-        if config.users.is_empty() {
+        if config.credentials.is_empty() {
             eprintln!("{}: No credentials found.", host.bold());
             continue;
         }
@@ -38,7 +38,7 @@ pub fn status(hosts_config: &Hosts) -> Result<()> {
         }
 
         let mut credentials: Vec<&String> = config
-            .users
+            .credentials
             .iter()
             .filter(|u| *u != active_credential)
             .collect();

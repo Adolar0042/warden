@@ -29,7 +29,6 @@ keyring = { version = "3.6", features = [
     "windows-native",
     "apple-native",
     "crypto-rust",
-    "vendored",
 ] }
 clap_complete = "4.5"
 regex = "1.11"
@@ -37,11 +36,19 @@ serde_with = "3.14"
 serde_regex = "1.1"
 url = "2.5"
 toml = "0.9"
-git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
+git2 = "0.20"
 dialoguer = { version = "0.11.0", features = ["fuzzy-select"] }
 crossterm = "0.29"
 ctrlc = "3.4"
 chrono = "0.4"
+
+[features]
+default = []
+vendored = [
+    "git2/vendored-libgit2",
+    "git2/vendored-openssl",
+    "keyring/vendored",
+]
 
 [[bin]]
 name = "warden"

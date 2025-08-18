@@ -24,6 +24,20 @@ pub fn switch(
 }
 
 fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()> {
+    if !hosts_config.has_credential(host, credential) {
+        eprintln!(
+            "{}",
+            styled_error_line(format!(
+                "No credential named '{}' found for host '{}'.",
+                credential, host
+            ))
+        );
+        bail!(
+            "No credential named '{}' found for host '{}'.",
+            credential,
+            host
+        );
+    }
     hosts_config
         .set_active_credential(host, credential)
         .context("Failed to set active credential.")?;

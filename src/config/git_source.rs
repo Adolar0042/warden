@@ -128,7 +128,7 @@ impl Source for GitConfigSource {
 
                 let raw_value = entry.value().unwrap_or_default();
 
-                // resolve relative endpoint values ("/path") against endpoint_base.
+                // resolve relative endpoint values ("/path") against endpoint_base
                 let resolve_endpoint = |v: &str| {
                     if v.starts_with('/') {
                         format!("{endpoint_base}{v}")

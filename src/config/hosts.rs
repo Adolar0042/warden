@@ -127,8 +127,13 @@ impl Hosts {
     }
 
     /// Get list of all credentials for a host
-    pub fn get_credentials(&self, host: &str) -> Option<&[String]> {
-        self.inner.get(host).map(|h| h.credentials.as_slice())
+    pub fn get_credentials(&self, host: &str) -> Result<&[String]> {
+        Ok(self
+            .inner
+            .get(host)
+            .context("No host found with that name")?
+            .credentials
+            .as_slice())
     }
 
     /// True if `credential` is present for `host`

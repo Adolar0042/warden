@@ -82,11 +82,13 @@ scopes = ["repo", "read:org", "write:org", "workflow"]
 # "auto" will attempt device flow first if supported, then fall back to auth code flow
 preferred_flow = "authcode"
 
+# routes can also be relative to the host
 [providers."gitlab.com"]
 client_id = "b154e7459101fcfaf18f57fc5a069bc87c0e16f31482f0531272acefcb143f1b"
-auth_url = "https://gitlab.com/oauth/authorize"
-token_url = "https://gitlab.com/oauth/token"
-device_auth_url = "https://gitlab.com/oauth/authorize_device"
+# this will be resolved to 'https://gitlab.com/oauth/authorize'
+auth_url = "/oauth/authorize"
+token_url = "/oauth/token"
+device_auth_url = "/oauth/authorize_device"
 scopes = ["read_repository", "write_repository"]
 preferred_flow = "authcode"
 

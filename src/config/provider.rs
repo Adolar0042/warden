@@ -11,15 +11,15 @@ use crate::config::git_source::GitConfigSource;
 /// Configuration for a single OAuth provider.
 ///
 /// Fields:
-/// - `client_id`: Required; empty strings are treated as invalid.
-/// - `client_secret`: Optional (PKCE auth-code flow often does not need it).
-/// - `auth_url`, `token_url`: Required absolute URLs (validated).
+/// - `client_id`: Required, empty strings are treated as invalid
+/// - `client_secret`: Optional (PKCE auth-code flow often does not need it)
+/// - `auth_url`, `token_url`: Required absolute URLs (validated)
 /// - `device_auth_url`: Optional device authorization endpoint (validated if
-///   present).
+///   present)
 /// - `scopes`: Optional list of scopes. `None` => do not send a `scope`
 ///   parameter. `Some(empty)` => explicitly send an empty scope set (depends on
-///   OAuth server behavior).
-/// - `preferred_flow`: Optional override ("auto" | "device" | "authcode").
+///   OAuth server behavior)
+/// - `preferred_flow`: Optional override ("auto" | "device" | "authcode")
 #[derive(Clone, Debug, Deserialize)]
 pub struct ProviderConfig {
     pub client_id: String,
@@ -74,27 +74,47 @@ impl OAuthConfig {
     }
 }
 
-/// Validate provider entries and discard invalid ones, logging warnings instead
-/// of panicking later during OAuth flows.
+/// Validate provider entries and discard invalid ones, logging warnings
 fn validate_providers(mut cfg: OAuthConfig) -> Result<OAuthConfig> {
     let mut invalid: Vec<(String, Vec<String>)> = Vec::new();
 
-    for (name, provider) in &cfg.providers {
+    for (name, provider) in &mut cfg.providers {
         let mut errs = Vec::new();
+
+        let endpoint_base = if name.starts_with("http://") || name.starts_with("https://") {
+            name
+        } else {
+            &format!("https://{name}")
+        };
+
+        // resolve relative endpoint values ("/path") against endpoint_base
+        let resolve_endpoint = |v: &str| {
+            if v.starts_with('/') {
+                format!("{endpoint_base}{v}")
+            } else {
+                v.to_string()
+            }
+        };
 
         if provider.client_id.trim().is_empty() {
             errs.push("missing client_id".into());
         }
+
+        provider.auth_url = resolve_endpoint(&provider.auth_url);
         if Url::parse(&provider.auth_url).is_err() {
             errs.push("invalid auth_url".into());
         }
+
+        provider.token_url = resolve_endpoint(&provider.token_url);
         if Url::parse(&provider.token_url).is_err() {
             errs.push("invalid token_url".into());
         }
-        if let Some(url) = &provider.device_auth_url
-            && Url::parse(url).is_err()
-        {
-            errs.push("invalid device_auth_url".into());
+
+        if let Some(url) = provider.device_auth_url.as_mut() {
+            *url = resolve_endpoint(url);
+            if Url::parse(url.as_str()).is_err() {
+                errs.push("invalid device_auth_url".into());
+            }
         }
 
         if !errs.is_empty() {

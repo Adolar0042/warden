@@ -118,8 +118,8 @@ pub async fn handle_get(
 
     if let Ok(mut token) = get_keyring_token(username, &req.host) {
         info!(
-            "Using cached credential for '{}' on '{}'.",
-            username, req.host
+            "Using cached credential for '{username}' on '{}'.",
+            req.host
         );
         print_token_checked(&mut token, username, provider)
             .await
@@ -127,12 +127,12 @@ pub async fn handle_get(
         return Ok(());
     }
 
-    warn!("No credential found for '{}' on '{}'.", username, req.host);
+    warn!("No credential found for '{username}' on '{}'.", req.host);
     eprintln!(
         "{}",
         styled_error_line(format!(
-            "No credential found for user '{}' on host '{}'.",
-            username, req.host
+            "No credential found for user '{username}' on host '{}'.",
+            req.host
         ))
     );
 

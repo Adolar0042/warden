@@ -199,6 +199,11 @@ impl Source for GitConfigSource {
             })
         });
 
+        let port = git_cfg
+            .get_entry("warden.port")
+            .ok()
+            .and_then(|e| e.value().and_then(|v| v.parse::<u16>().ok()));
+
         if providers_table.is_empty() && oauth_only.is_none() {
             return Ok(HashMap::new());
         }
@@ -206,6 +211,9 @@ impl Source for GitConfigSource {
         let mut root = HashMap::new();
         if let Some(flag) = oauth_only {
             root.insert("oauth_only".into(), Value::from(flag));
+        }
+        if let Some(port) = port {
+            root.insert("port".into(), Value::from(port));
         }
         if !providers_table.is_empty() {
             root.insert("providers".into(), Value::from(providers_table));

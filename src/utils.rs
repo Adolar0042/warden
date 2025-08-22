@@ -3,29 +3,15 @@ use std::fmt::Display;
 use std::io::{self, BufRead as _, stderr};
 use std::path::PathBuf;
 use std::process::exit;
-use std::sync::LazyLock;
 
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
 use crossterm::cursor::Show;
 use crossterm::execute;
 use dialoguer::FuzzySelect;
-use dialoguer::console::style;
-use dialoguer::theme::ColorfulTheme;
 use tracing::{info, instrument};
 
-pub static THEME: LazyLock<ColorfulTheme> = LazyLock::new(|| {
-    ColorfulTheme {
-        prompt_prefix: style(String::new()).for_stderr(),
-        prompt_suffix: style(String::new()).for_stderr(),
-        success_prefix: style(String::new()).for_stderr(),
-        success_suffix: style(String::new()).for_stderr(),
-        error_prefix: style(String::new()).for_stderr(),
-        active_item_prefix: style(">".to_string()).for_stderr().magenta(),
-        inactive_item_prefix: style(" ".to_string()).for_stderr(),
-        ..ColorfulTheme::default()
-    }
-});
+use crate::theme::InputTheme;
 
 pub fn select_index<S: Into<String>, T: AsRef<str> + Display>(
     items: &[T],
@@ -35,7 +21,7 @@ pub fn select_index<S: Into<String>, T: AsRef<str> + Display>(
         let _ = execute!(stderr(), Show);
         exit(130);
     });
-    FuzzySelect::with_theme(&*THEME)
+    FuzzySelect::with_theme(&InputTheme::default())
         .items(items)
         .with_prompt(prompt)
         .default(0)

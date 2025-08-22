@@ -3410,7 +3410,7 @@ dependencies = [
 
 [[package]]
 name = "warden"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3423,6 +3423,7 @@ dependencies = [
  "ctrlc",
  "dialoguer",
  "dirs",
+ "fuzzy-matcher",
  "git2",
  "keyring",
  "oauth2",

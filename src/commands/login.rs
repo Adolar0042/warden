@@ -4,13 +4,15 @@ use std::process::exit;
 use anyhow::{Context as _, Result, bail};
 use crossterm::cursor::Show;
 use crossterm::execute;
-use dialoguer::Input;
+use crossterm::style::Stylize as _;
+use dialoguer::{Confirm, Input};
 use tracing::instrument;
 
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::store_keyring_token;
 use crate::oauth::get_access_token;
-use crate::utils::{THEME, config_dir, select_index};
+use crate::theme::InputTheme;
+use crate::utils::{config_dir, select_index};
 
 #[instrument(skip(oauth_config, hosts_config))]
 pub async fn login(
@@ -22,7 +24,7 @@ pub async fn login(
         let _ = execute!(stderr(), Show);
         exit(130);
     });
-    let credential_name: String = Input::with_theme(&*THEME)
+    let credential_name: String = Input::with_theme(&InputTheme::default())
         .with_prompt("Credential Name")
         .default("oauth".to_string())
         .interact_text()
@@ -50,14 +52,17 @@ pub async fn login(
             let _ = execute!(stderr(), Show);
             exit(130);
         });
-        let confirm = dialoguer::Confirm::with_theme(&*THEME)
-            .with_prompt(format!(
-                "A credential with the name '{}' already exists for host '{}'. Do you want to \
-                 overwrite it?",
+        eprintln!(
+            "{}",
+            format!(
+                "A credential with the name '{}' already exists for host '{}'.",
                 credential_name, providers[selection]
-            ))
+            )
+            .bold()
+        );
+        let confirm = Confirm::with_theme(&InputTheme::default())
+            .with_prompt("Do you want to overwrite it?")
             .default(false)
-            .wait_for_newline(true)
             .interact()
             .context("Failed to confirm overwrite")?;
         if !confirm {

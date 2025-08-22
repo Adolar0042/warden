@@ -4,6 +4,7 @@ use std::process::exit;
 use anyhow::{Context as _, Result, bail};
 use crossterm::cursor::Show;
 use crossterm::execute;
+use dialoguer::Confirm;
 
 use crate::commands::common::{
     CredentialPair, collect_all_pairs, filter_pairs, sort_pairs, styled_error_line,
@@ -11,7 +12,8 @@ use crate::commands::common::{
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::{get_keyring_token, store_keyring_token};
 use crate::oauth::{get_access_token, refresh_access_token};
-use crate::utils::{THEME, select_index};
+use crate::theme::InputTheme;
+use crate::utils::select_index;
 
 pub async fn refresh(
     oauth_config: &OAuthConfig,
@@ -92,7 +94,7 @@ async fn refresh_one(
             let _ = execute!(stderr(), Show);
             exit(130);
         });
-        let use_refresh = dialoguer::Confirm::with_theme(&*THEME)
+        let use_refresh = Confirm::with_theme(&InputTheme::default())
             .with_prompt("A refresh token is available. Use it?")
             .default(true)
             .interact()

@@ -17,6 +17,7 @@ mod config;
 mod keyring;
 mod oauth;
 mod profile;
+mod theme;
 mod utils;
 
 #[derive(Parser, Debug)]

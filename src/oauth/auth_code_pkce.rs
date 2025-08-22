@@ -115,11 +115,11 @@ async fn wait_for_code(
 ) -> Result<(AuthorizationCode, CsrfToken)> {
     match open::that(authorize_url.to_string()) {
         Ok(()) => {
-            eprintln!(" Beep Boop! Check your browser for authorization.");
+            eprintln!("Beep Boop! Check your browser for authorization.");
         },
         Err(_) => {
             eprintln!(
-                " Bzzt! Unable to automatically open your browser.\n Open this URL in your \
+                "Bzzt! Unable to automatically open your browser.\n Open this URL in your \
                  browser: {}",
                 authorize_url.to_string().bold()
             );

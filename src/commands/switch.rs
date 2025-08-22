@@ -28,15 +28,10 @@ fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()
         eprintln!(
             "{}",
             styled_error_line(format!(
-                "No credential named '{}' found for host '{}'.",
-                credential, host
+                "No credential named '{credential}' found for host '{host}'.",
             ))
         );
-        bail!(
-            "No credential named '{}' found for host '{}'.",
-            credential,
-            host
-        );
+        bail!("No credential named '{credential}' found for host '{host}'.");
     }
     hosts_config
         .set_active_credential(host, credential)

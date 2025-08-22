@@ -42,17 +42,17 @@ To add shell completions, add the following (or equivalent) to your shell config
 eval "$(warden completions <shell>)"
 ```
 
-## Quick start
+## Quick Start
 
-### Configure Git to use warden as a credential helper
+### Configure Git to use warden as a Credential Helper
 
 ```bash
 git config --global credential.helper warden
 ```
 
-*(Hint: if you didn't link the `warden` binary to a location in PATH with the name `git-credential-warden`, you can put an `!` before `warden` to make git look for an executable named `warden` in your PATH)*
+*(Hint: if you didn't link the `warden` binary to a location in PATH with the name `git-credential-warden`, you can put an `!` before `warden` to make git run the command in your shell where the cargo bin directory is likely already added to PATH)*
 
-### Add OAuth providers
+### Add OAuth Providers
 
 Warden looks for configuration files in `$XDG_CONFIG_HOME/warden` or `~/.config/warden` on Linux, and in `~/.config/warden` on other platforms.
 
@@ -151,13 +151,15 @@ You can mix file and git config: git config can override just one field (for exa
 Example minimal provider entirely from git config (no `oauth.toml` needed):
 
 ```bash
-git config --global credential.https://code.example.com.oauthClientId 123456
-git config --global credential.https://code.example.com.oauthAuthURL https://code.example.com/oauth/authorize
-git config --global credential.https://code.example.com.oauthTokenURL https://code.example.com/oauth/token
-git config --global credential.https://code.example.com.oauthScopes "repo"
+git config --global credential.https://git.example.com.oauthClientId 123456
+git config --global credential.https://git.example.com.oauthAuthURL https://git.example.com/oauth/authorize
+git config --global credential.https://git.example.com.oauthTokenURL https://git.example.com/oauth/token
+git config --global credential.https://git.example.com.oauthScopes "repo"
 ```
 
-If you want to use this purely as a credential helper without profiles, set `oauth-only = true` either in `oauth.toml` or via git config under a `[warden]` section (e.g. `git config --global warden.oauth-only true`). This makes warden stateless, it will not store tokens in the keyring and each Git credential request triggers a fresh OAuth flow.
+You can also specify a custom port for the OAuth callback server by adding a `port = 12345` entry in `oauth.toml` or via git config (e.g. `git config --global warden.port 12346`).
+
+If you want to use this purely as a credential helper without profiles, set `oauth-only = true` either in `oauth.toml` or via git config (e.g. `git config --global warden.oauth-only true`). This makes warden stateless, it will not store tokens in the keyring and each Git credential request triggers a fresh OAuth flow.
 
 I recommend adding the git credential cache to your `~/.gitconfig` to avoid having to log in for every Git operation:
 
@@ -183,16 +185,37 @@ If the provider does not support device flow (no `device_auth_url` configured), 
 
 If you *don't* want to use warden purely as a credential helper, read on.
 
-## Credential management
+### Use a Specific Credential per Path
+
+If you want Git to pick a specific credential for a user or even a single repository, enable path-aware credential matching and set a username for that URL:
+
+```toml
+# in ~/.gitconfig
+[credential]
+helper = warden
+useHttpPath = true  # include the path when matching credentials
+
+# Prefer this username for a single repo (must match your remote URL)
+[credential "https://git.example.com/exampleUser42/repo.git"]
+username = credential-name
+
+# Or prefer this username for an entire user/org
+[credential "https://git.example.com/exampleUser42"]
+username = credential-name
+```
+
+With `useHttpPath = true`, Git passes the full URL (including `/exampleUser42/repo`) to the credential helper and respects different usernames for different paths. Warden will then use the configured username to select the matching stored credential (or prompt you to log in for that username if none exists).
+
+## Credential Management
 
 Warden implements the Git credential-helper protocol.
 When Git needs credentials, it calls warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username and access token to Git, and stores tokens safely in your system keyring.
 
-To manage credentials, run `warden login` to add a username for a provider and fetch/store a token, `warden logout [--hostname H] [--name USER]` to remove credentials, `warden refresh [--hostname H] [--name USER]` to renew a token, `warden switch [--hostname H] [--name USER]` to change the active account, and `warden status` to review configured hosts, users, and whether a token exists. (These commands are further explained below.)
+To manage credentials, run `warden login` to add a credential for a provider and fetch/store a token, `warden logout [--hostname HOST] [--name CRED]` to remove credentials, `warden refresh [--hostname HOST] [--name CRED]` to renew a token, `warden switch [--hostname HOST] [--name CRED]` to change the active credential, and `warden status` to review configured hosts, crednetials, and whether a token exists. (These commands are further explained below.)
 
 These commands make it easy to switch identities and inspect state without editing files.
 
-### Log in to an OAuth provider
+### Log In to an OAuth Provider
 
 Run the following command to log in to an OAuth provider:
 
@@ -200,19 +223,19 @@ Run the following command to log in to an OAuth provider:
 warden login
 ```
 
-You will be prompted to enter a username (defaults to "oauth") and select an OAuth provider from those defined in `oauth.toml`. Warden will then perform the OAuth flow and store your access token in the OS keyring.
+You will be prompted to enter a credential name (defaults to "oauth") and select an OAuth provider from those defined in `oauth.toml`. Warden will then perform the OAuth flow and store your access token in the OS keyring.
 
-### Check your configured accounts
+### Check Your Configured Credentials
 
-To see which accounts you have configured for each OAuth provider, run:
+To see which credentials you have configured for each OAuth provider, run:
 
 ```bash
 warden status
 ```
 
-This will show you the active account for each host, the available accounts, and whether a token exists for that account or not.
+This will show you the active credential for each host, the available credentials, and whether a token exists for that credential or not.
 
-### Refresh a credential
+### Refresh a Credential
 
 If you need to refresh an OAuth token (for example, if it has expired or was otherwise removed from your OS keyring), you can run:
 
@@ -220,13 +243,13 @@ If you need to refresh an OAuth token (for example, if it has expired or was oth
 warden refresh
 ```
 
-You can specify a hostname and username to refresh a specific account:
+You can specify a hostname and credential name to refresh a specific credential:
 
 ```bash
-warden refresh --hostname github.com --name lena
+warden refresh --hostname <hostname> --name <credential name>
 ```
 
-### Switch credentials for an OAuth provider
+### Switch Credentials for an OAuth Provider
 
 If you have multiple credentials for an OAuth provider, you can switch between them using:
 
@@ -235,14 +258,14 @@ warden switch
 ```
 
 If you have two credentials for that provider, warden will toggle between them.
-Otherwise it will prompt you to select one of the available accounts for that OAuth provider.
-You can optionally specify a hostname and username to switch to a specific account:
+Otherwise it will prompt you to select one of the available credentials for that OAuth provider.
+You can optionally specify a hostname and credential name to switch to a specific credential:
 
 ```bash
-warden switch --hostname github.com --name lena
+warden switch --hostname <hostname> --name <credential name>
 ```
 
-### Log out of an OAuth provider
+### Log Out of an OAuth Provider
 
 To log out of an OAuth provider and remove the stored token, run:
 
@@ -250,17 +273,17 @@ To log out of an OAuth provider and remove the stored token, run:
 warden logout
 ```
 
-You can specify a hostname and username to log out of a specific account:
+You can specify a hostname and credential name to log out of a specific credential:
 
 ```bash
-warden logout --hostname github.com --name lena
+warden logout --hostname <hostname> --name <credential name>
 ```
 
-## Profile management
+## Profile Management
 
 Warden allows you to manage multiple Git profiles and apply them to your repositories based on their remote URLs.
 
-### Example profile configuration
+### Example Profile Configuration
 
 ```toml
 [profiles.default]
@@ -279,7 +302,7 @@ owner = "Company" # Applies work profile to all repositories in `Company` org
 profile.name = "default"
 ```
 
-### List available profiles
+### List Available Profiles
 
 To see the available profiles, run:
 
@@ -294,7 +317,7 @@ What you will see is a list of profiles like this:
   work: Your Name (Company Inc.) <your_name@example.company.com>
 ```
 
-### Apply a profile to a repository
+### Apply a Profile to a Repository
 
 ```bash
 profile apply default
@@ -304,7 +327,7 @@ profile apply work
 profile apply
 ```
 
-### Show a profile's configuration
+### Show a Profile's Configuration
 
 To inspect a profile's configuration, run:
 
@@ -320,7 +343,7 @@ warden show work
 
 This will print the profile's configuration in a TOML-like format, showing all the git config entries that will be applied when you use that profile.
 
-### Repository patterns
+### Repository Patterns
 
 Repository patterns let you control how warden parses repository remotes to extract host, owner, and repo for rule matching. Patterns are evaluated top-to-bottom; the first that matches is used. You configure them in `~/.config/warden/profiles.toml` with `[[patterns]]` entries.
 

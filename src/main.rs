@@ -178,7 +178,7 @@ async fn main() -> Result<()> {
                 shell,
                 &mut cmd,
                 env!("CARGO_PKG_NAME"),
-                &mut std::io::stderr(),
+                &mut std::io::stdout(),
             );
         },
     }

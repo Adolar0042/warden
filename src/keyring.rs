@@ -5,12 +5,14 @@ use std::collections::HashMap;
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
 use keyring::Entry;
+use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 
 use crate::config::ProviderConfig;
 use crate::oauth::refresh_access_token;
 
 #[expect(clippy::struct_field_names, reason = "name is intended")]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Token {
     access_token: String,
     refresh_token: Option<String>,
@@ -34,12 +36,12 @@ impl Display for Token {
 
 impl Token {
     pub const fn new(
-        accesss_token: String,
+        access_token: String,
         refresh_token: Option<String>,
         expires_at: Option<DateTime<Utc>>,
     ) -> Self {
         Self {
-            access_token: accesss_token,
+            access_token,
             refresh_token,
             expires_at,
         }
@@ -72,19 +74,13 @@ impl Token {
     }
 
     pub fn pack(&self) -> String {
-        serde_json::to_string(&(
-            self.access_token.clone(),
-            self.refresh_token.clone(),
-            self.expires_at,
-        ))
-        .unwrap()
+        serde_json::to_string(self)
+            .context("Failed to serialize token for storage in keyring")
+            .unwrap()
     }
 
     pub fn from_string(s: &str) -> Result<Self> {
-        let (access_token, refresh_token, expires_at) =
-            serde_json::from_str::<(String, Option<String>, Option<DateTime<Utc>>)>(s)
-                .context("Failed to parse token")?;
-        Ok(Self::new(access_token, refresh_token, expires_at))
+        serde_json::from_str::<Self>(s).context("Failed to parse token")
     }
 }
 

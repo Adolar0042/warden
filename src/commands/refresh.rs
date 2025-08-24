@@ -108,8 +108,7 @@ async fn refresh_one(
             return Ok(());
         }
     }
-
-    let token = get_access_token(provider, oauth_config, force_device)
+    let token = get_access_token(oauth_config, &pair.host, force_device)
         .await
         .context("Failed to get access token")?;
     store_keyring_token(pair.credential.as_str(), &pair.host, &token)

@@ -1,6 +1,6 @@
 pub mod auth_code_pkce;
 pub mod device_code;
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use chrono::Utc;
 use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RefreshToken, TokenResponse as _, TokenUrl};
@@ -13,23 +13,27 @@ use crate::keyring::Token;
 /// Selects and executes the OAuth flow based on provider settings.
 #[instrument(skip(provider, config))]
 pub async fn get_access_token(
-    provider: &ProviderConfig,
     config: &OAuthConfig,
+    provider: &String,
     force_device: bool,
 ) -> Result<Token> {
+    let provider = config
+        .providers
+        .get(provider)
+        .ok_or_else(|| anyhow!("No OAuth provider configuration found for {provider}"))?;
     if force_device {
         if provider.device_auth_url.is_none() {
             bail!("Device code flow is not supported for this provider.");
         }
-        return device_code::exchange_device_code(provider, config).await;
+        return device_code::exchange_device_code(provider).await;
     }
     match provider.preferred_flow.as_deref() {
-        Some("device") => device_code::exchange_device_code(provider, config).await,
+        Some("device") => device_code::exchange_device_code(provider).await,
         Some("authcode") => auth_code_pkce::exchange_auth_code_pkce(provider, config).await,
         _ => {
             if provider.device_auth_url.is_some() {
                 // Try device flow first, fall back to auth code
-                match device_code::exchange_device_code(provider, config).await {
+                match device_code::exchange_device_code(provider).await {
                     Ok(secret) => Ok(secret),
                     Err(_) => auth_code_pkce::exchange_auth_code_pkce(provider, config).await,
                 }

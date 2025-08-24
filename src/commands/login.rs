@@ -70,11 +70,7 @@ pub async fn login(
         }
     }
 
-    let provider = oauth_config
-        .providers
-        .get(providers[selection])
-        .context("Provider not found")?;
-    let token = get_access_token(provider, oauth_config, force_device)
+    let token = get_access_token(oauth_config, providers[selection], force_device)
         .await
         .context("Failed to get access token")?;
 

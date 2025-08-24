@@ -16,7 +16,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 use tracing::{info, instrument};
 
-use crate::config::{OAuthConfig, ProviderConfig};
+use crate::config::ProviderConfig;
 use crate::keyring::Token;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,11 +29,8 @@ type StoringDeviceAuthorizationResponse = DeviceAuthorizationResponse<StoringFie
     clippy::too_many_lines,
     reason = "function is long but necessary for device code flow"
 )]
-#[instrument(skip(provider, _config))]
-pub async fn exchange_device_code(
-    provider: &ProviderConfig,
-    _config: &OAuthConfig,
-) -> Result<Token> {
+#[instrument(skip(provider))]
+pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
     let auth_url =
         AuthUrl::new(provider.auth_url.clone()).expect("Invalid authorization endpoint URL");
     let token_url = TokenUrl::new(provider.token_url.clone()).expect("Invalid token endpoint URL");

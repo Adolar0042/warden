@@ -61,7 +61,7 @@ pub async fn handle_get(
         if maybe_print_with_refresh_token(&req, provider).await? {
             return Ok(());
         }
-        let token = device_code::exchange_device_code(provider, &oauth_config)
+        let token = device_code::exchange_device_code(provider)
             .await
             .context("Failed to authenticate with device flow.")?;
         print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
@@ -73,7 +73,7 @@ pub async fn handle_get(
         if maybe_print_with_refresh_token(&req, provider).await? {
             return Ok(());
         }
-        let token = get_access_token(provider, &oauth_config, force_device).await?;
+        let token = get_access_token(&oauth_config, &req.host, force_device).await?;
         print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
         return Ok(());
     }

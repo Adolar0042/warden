@@ -16,7 +16,7 @@ pub fn status(hosts_config: &Hosts) -> Result<()> {
                 format!("{} login", env!("CARGO_PKG_NAME")).blue()
             ))
         );
-        bail!("No credentials found.");
+        bail!("No credentials found");
     }
 
     for (host, config) in hosts_config.iter_sorted() {

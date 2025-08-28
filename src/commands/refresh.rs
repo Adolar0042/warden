@@ -24,8 +24,8 @@ pub async fn refresh(
 ) -> Result<()> {
     let mut pairs = collect_all_pairs(hosts_config);
     if pairs.is_empty() {
-        eprintln!("{}", styled_error_line("No credentials found to refresh."));
-        bail!("No credentials found to refresh.");
+        eprintln!("{}", styled_error_line("No credentials found to refresh"));
+        bail!("No credentials found to refresh");
     }
     sort_pairs(&mut pairs);
 
@@ -34,17 +34,17 @@ pub async fn refresh(
     if filtered.is_empty() {
         match (host, name) {
             (Some(h), Some(n)) => {
-                let msg = format!("No credentials found for '{n}' on {h}.");
+                let msg = format!("No credentials found for '{n}' on {h}");
                 eprintln!("{}", styled_error_line(&msg));
                 bail!(msg);
             },
             (Some(h), None) => {
-                let msg = format!("No credentials found for {h}.");
+                let msg = format!("No credentials found for {h}");
                 eprintln!("{}", styled_error_line(&msg));
                 bail!(msg);
             },
             (None, Some(n)) => {
-                let msg = format!("No credentials found for '{n}'.");
+                let msg = format!("No credentials found for '{n}'");
                 eprintln!("{}", styled_error_line(&msg));
                 bail!(msg);
             },

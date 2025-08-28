@@ -38,7 +38,7 @@ pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Re
 
         let remote = repo.find_remote("origin");
         let Ok(remote) = remote else {
-            eprintln!("{}", styled_error_line("No remote named 'origin' found."));
+            eprintln!("{}", styled_error_line("No remote named 'origin' found"));
             return Ok(());
         };
         let remote_url = remote.url().expect("No remote url");

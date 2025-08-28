@@ -18,7 +18,7 @@ async fn maybe_print_with_refresh_token(
     if let Some(refresh_token) = req.oauth_refresh_token.as_ref()
         && req.password.is_none()
     {
-        info!("Using provided refresh token to get access token.");
+        info!("Using provided refresh token to get access token");
         let mut token = Token::new(
             req.password.clone().unwrap_or_default(),
             Some(refresh_token.clone()),
@@ -55,21 +55,21 @@ pub async fn handle_get(
 
     if force_device {
         if provider.device_auth_url.is_none() {
-            error!("Device code flow is not supported for this provider.");
-            bail!("Device code flow is not supported for this provider.");
+            error!("Device code flow is not supported for this provider");
+            bail!("Device code flow is not supported for this provider");
         }
         if maybe_print_with_refresh_token(&req, provider).await? {
             return Ok(());
         }
         let token = device_code::exchange_device_code(provider)
             .await
-            .context("Failed to authenticate with device flow.")?;
+            .context("Failed to authenticate with device flow")?;
         print_token(&token, &req.username.unwrap_or_else(|| "oauth".to_string()));
         return Ok(());
     }
 
     if oauth_config.oauth_only.unwrap_or(false) {
-        debug!("OAuth-only mode is enabled.");
+        debug!("OAuth-only mode is enabled");
         if maybe_print_with_refresh_token(&req, provider).await? {
             return Ok(());
         }
@@ -83,7 +83,7 @@ pub async fn handle_get(
         && !credential.is_empty()
         && hosts_config.has_credential(&req.host, credential)
     {
-        info!("Username was in request and in hosts config.");
+        info!("Username was in request and in hosts config");
         let mut token = get_keyring_token(credential, &req.host)
             .context("Failed to retrieve token from keyring")?;
         print_token_checked(&mut token, credential, provider)

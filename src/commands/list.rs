@@ -17,8 +17,8 @@ const INHERIT: &str = "(inherit)";
 #[instrument(skip(profile_config))]
 pub fn list(short: bool, profile_config: &ProfileConfig) -> Result<()> {
     if profile_config.profiles.is_empty() {
-        eprintln!("{}", styled_error_line("No profiles found."));
-        bail!("No profiles found.");
+        eprintln!("{}", styled_error_line("No profiles found"));
+        bail!("No profiles found");
     }
     profile_config.profiles.iter().for_each(|(name, profile)| {
         if short {

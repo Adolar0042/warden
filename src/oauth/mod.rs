@@ -23,7 +23,7 @@ pub async fn get_access_token(
         .ok_or_else(|| anyhow!("No OAuth provider configuration found for {provider}"))?;
     if force_device {
         if provider.device_auth_url.is_none() {
-            bail!("Device code flow is not supported for this provider.");
+            bail!("Device code flow is not supported for this provider");
         }
         return device_code::exchange_device_code(provider).await;
     }

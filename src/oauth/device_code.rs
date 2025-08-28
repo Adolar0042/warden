@@ -101,7 +101,7 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
                 if String::from_utf8(serde_error)?.contains("authorization_pending") {
                     // we got a github!
                     // break and enter the weird loop for non-oauth2 compliant servers
-                    info!("Git server is not following the oauth2 spec.");
+                    info!("Git server is not following the oauth2 spec");
                     break;
                 }
             },

@@ -131,6 +131,6 @@ pub fn get_keyring_token(credential: &str, host: &str) -> Result<Token> {
     let entry = get_entry(credential, host)?;
     let secret = entry
         .get_password()
-        .context("Failed to retrieve token from keyring.")?;
+        .context("Failed to retrieve token from keyring")?;
     Token::from_string(&secret)
 }

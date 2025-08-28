@@ -16,9 +16,19 @@ pub fn switch(
     name: Option<&String>,
 ) -> Result<()> {
     match (hostname, name) {
-        (Some(host), Some(credential)) => activate(hosts_config, host, credential),
-        (Some(host), None) => switch_by_host(hosts_config, host),
-        (None, Some(credential)) => switch_by_credential(hosts_config, credential),
+        (Some(host), Some(credential)) => {
+            activate(hosts_config, host, credential).with_context(|| {
+                format!("Failed to switch active credential for host '{host}' to '{credential}'")
+            })
+        },
+        (Some(host), None) => {
+            switch_by_host(hosts_config, host)
+                .with_context(|| format!("Failed to switch active credential for host '{host}'"))
+        },
+        (None, Some(credential)) => {
+            switch_by_credential(hosts_config, credential)
+                .with_context(|| format!("Failed to switch to credential '{credential}'"))
+        },
         (None, None) => switch_any(hosts_config),
     }
 }
@@ -28,14 +38,14 @@ fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()
         eprintln!(
             "{}",
             styled_error_line(format!(
-                "No credential named '{credential}' found for host '{host}'.",
+                "No credential named '{credential}' found for host '{host}'",
             ))
         );
-        bail!("No credential named '{credential}' found for host '{host}'.");
+        bail!("No credential named '{credential}' found for host '{host}'");
     }
     hosts_config
         .set_active_credential(host, credential)
-        .context("Failed to set active credential.")?;
+        .context("Failed to set active credential")?;
     eprintln!(
         "Switched active credential for {} to {}",
         host.bold(),
@@ -47,7 +57,7 @@ fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()
 fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
     let credentials = hosts_config
         .get_credentials(host)
-        .context(format!("Failed to get credentials for host '{host}'"))?
+        .with_context(|| format!("Failed to get credentials for host '{host}'"))?
         .to_owned();
 
     if credentials.is_empty() {
@@ -61,7 +71,7 @@ fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
     } else if credentials.len() == 2 {
         let active = hosts_config
             .get_active_credential(host)
-            .context(format!("Failed to get active credential for '{host}'"))?;
+            .with_context(|| format!("Failed to get active credential for '{host}'"))?;
         if credentials[0] == active {
             &credentials[1]
         } else {
@@ -80,7 +90,7 @@ fn switch_by_credential(hosts_config: &mut Hosts, credential: &str) -> Result<()
     pairs = filter_pairs(pairs.iter(), None, Some(credential));
 
     if pairs.is_empty() {
-        bail!("No credentials found for '{credential}'.");
+        bail!("No credentials found with name '{credential}'");
     }
 
     if pairs.len() == 1 {
@@ -101,7 +111,7 @@ fn switch_by_credential(hosts_config: &mut Hosts, credential: &str) -> Result<()
 fn switch_any(hosts_config: &mut Hosts) -> Result<()> {
     let mut pairs = collect_all_pairs(hosts_config);
     if pairs.is_empty() {
-        bail!("No credentials found to switch.");
+        bail!("No credentials found to switch");
     }
     sort_pairs(&mut pairs);
 

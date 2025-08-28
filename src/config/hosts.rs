@@ -131,7 +131,7 @@ impl Hosts {
         Ok(self
             .inner
             .get(host)
-            .context("No host found with that name")?
+            .with_context(|| format!("No credentials found for host '{host}'"))?
             .credentials
             .as_slice())
     }

@@ -37,6 +37,7 @@ release:
     cargo test --workspace
     cargo build --release --workspace
     cargo clippy --workspace --all-targets -- -D warnings
+    typos
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --document-private-items
 
 install:

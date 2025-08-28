@@ -211,7 +211,7 @@ With `useHttpPath = true`, Git passes the full URL (including `/exampleUser42/re
 Warden implements the Git credential-helper protocol.
 When Git needs credentials, it calls warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username and access token to Git, and stores tokens safely in your system keyring.
 
-To manage credentials, run `warden login` to add a credential for a provider and fetch/store a token, `warden logout [--hostname HOST] [--name CRED]` to remove credentials, `warden refresh [--hostname HOST] [--name CRED]` to renew a token, `warden switch [--hostname HOST] [--name CRED]` to change the active credential, and `warden status` to review configured hosts, crednetials, and whether a token exists. (These commands are further explained below.)
+To manage credentials, run `warden login` to add a credential for a provider and fetch/store a token, `warden logout [--hostname HOST] [--name CRED]` to remove credentials, `warden refresh [--hostname HOST] [--name CRED]` to renew a token, `warden switch [--hostname HOST] [--name CRED]` to change the active credential, and `warden status` to review configured hosts, credentials, and whether a token exists. (These commands are further explained below.)
 
 These commands make it easy to switch identities and inspect state without editing files.
 

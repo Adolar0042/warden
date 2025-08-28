@@ -149,7 +149,7 @@ impl Hosts {
     }
 
     /// Set the active credential for a host, inserting the host if missing
-    /// Ensures the credential is present in the `crednetials` list
+    /// Ensures the credential is present in the `credentials` list
     pub fn set_active_credential(&mut self, host: &str, credential: &str) -> Result<()> {
         let entry = self.inner.entry(host.to_string()).or_insert_with(|| {
             HostConfig {

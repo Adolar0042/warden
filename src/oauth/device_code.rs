@@ -73,7 +73,7 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
     let _ = open::that(details.verification_uri().to_string());
 
     eprintln!(
-        "Beep Boop! Open this URL in your browser\n {}\n and enter the code {}",
+        "Beep Boop! Open this URL in your browser\n{}\nand enter the code {}",
         details.verification_uri().bold(),
         details.user_code().secret().bold()
     );

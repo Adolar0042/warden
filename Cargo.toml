@@ -1,7 +1,7 @@
 [package]
 name = "warden"
 authors = ["Adolar0042"]
-version = "1.2.3"
+version = "1.2.4"
 license = "GPL-3.0"
 edition = "2024"
 description = "A CLI for Git profiles and OAuth credentials, with rule-based profile selection and a built-in git credential helper."
@@ -15,7 +15,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 config = { version = "0.15", features = ["toml"] }
 oauth2 = "5.0"
 open = "5.3"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json"] }
 serde = "1.0"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
@@ -49,6 +49,7 @@ vendored = [
     "git2/vendored-libgit2",
     "git2/vendored-openssl",
     "keyring/vendored",
+    "reqwest/rustls-tls",
 ]
 
 [[bin]]

@@ -2,32 +2,48 @@
 
 Warden does two things for your Git workflow: Git profile management and OAuth-based Git credentials.
 
-A best-effort mirror of this repository is maintained at [codeberg.org](https://codeberg.org/adolar0042/warden). No guarantees are provided about its freshness or availability.
+Best-effort mirrors of this repository are maintained at [codeberg.org](https://codeberg.org/adolar0042/warden) and [git.gay](https://git.gay/adolar0042/warden). No guarantees are provided about their freshness or availability.
+
+<!--toc:start-->
+- [Install](#install)
+- [Quick Start](#quick-start)
+  - [Configure Git to use warden as a Credential Helper](#configure-git-to-use-warden-as-a-credential-helper)
+  - [Add OAuth Providers](#add-oauth-providers)
+  - [Configuration via `git config`](#configuration-via-git-config)
+    - [Use a Specific Credential per Path](#use-a-specific-credential-per-path)
+- [Credential Management](#credential-management)
+  - [Log In to an OAuth Provider](#log-in-to-an-oauth-provider)
+  - [Check Your Configured Credentials](#check-your-configured-credentials)
+  - [Refresh a Credential](#refresh-a-credential)
+  - [Switch Credentials for an OAuth Provider](#switch-credentials-for-an-oauth-provider)
+  - [Log Out of an OAuth Provider](#log-out-of-an-oauth-provider)
+- [Profile Management](#profile-management)
+  - [List Available Profiles](#list-available-profiles)
+  - [Apply a Profile to a Repository](#apply-a-profile-to-a-repository)
+  - [Show a Profile's Configuration](#show-a-profiles-configuration)
+- [Configuration](#configuration)
+  - [OAuth](#oauth)
+    - [Configure or Override Providers via `git config`](#configure-or-override-providers-via-git-config)
+    - [Rules and Behavior](#rules-and-behavior)
+    - [OAuth-only Mode](#oauth-only-mode)
+  - [Profile Configuration](#profile-configuration)
+    - [Example Profile Configuration](#example-profile-configuration)
+    - [Repository Patterns](#repository-patterns)
+      - [Example Pattern Configuration](#example-pattern-configuration)
+- [License](#license)
+<!--toc:end-->
 
 ## Install
 
-From source, run
-
-```bash
-cargo build --release
-# build with vendored native libs (libgit2, OpenSSL, keyring)
-cargo build --release --features vendored
-```
-
-Then copy `target/release/warden` to a directory in your PATH, OR
-install it via Cargo.
+Compile and install via Cargo:
 
 ```bash
 cargo install --git https://github.com/adolar0042/warden
 # with vendored libs
 cargo install --git https://github.com/adolar0042/warden --features vendored
-# or if locally cloned
-cargo install --path .
-# locally with vendored libs
-cargo install --path . --features vendored
 ```
 
-**Note that git credential helpers must be installed in a directory in your PATH. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**
+**Note that git credential helpers must be installed in a directory in your PATH with the name `git-credentian-<name>`. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**
 To ensure it works as expected, additionally link it to a standard location (in this example linux)
 
 ```bash
@@ -36,7 +52,7 @@ sudo ln -s ~/.cargo/bin/warden /usr/bin/git-credential-warden
 
 This linking is important! Mainly out of convenience, so you can use `warden` for all commands and git still has its preferred `git-credential-warden` helper available.
 
-To add shell completions, add the following (or equivalent) to your shell configuration file:
+To add shell completions, add the following to your shell configuration file (assuming a POSIX compliant shell):
 
 ```bash
 eval "$(warden completions <shell>)"
@@ -54,140 +70,40 @@ git config --global credential.helper warden
 
 ### Add OAuth Providers
 
-Warden looks for configuration files in `$XDG_CONFIG_HOME/warden` or `~/.config/warden` on Linux, and in `~/.config/warden` on other platforms.
-
-The key files are:
-
-- `oauth.toml` for OAuth providers, an optional port override, and the oauth-only setting
-- `profiles.toml` for profiles, rules and patterns
-
-I have already set up a GitHub, GitLab and Codeberg OAuth application for you to use.
+I have already set up OAuth applications for a few git hosts for you to use. (For more explanation please refer to the [configuration section](#configuration) of the README.)
 Create a file at `~/.config/warden/oauth.toml` with the following content:
 
 ```toml
-# Optional, see below for more details
-# port = 12346
-# oauth_only = true
-
 [providers."github.com"]
+type = "github"
 client_id = "Ov23li8uFPnowNKmRc1h"
-# client secret is usually optional since we use PKCE, but GitHub requires it
 client_secret = "5b364d7edf01e60a2c2c5bfaf51dc7b66f6fb162"
-auth_url = "https://github.com/login/oauth/authorize"
-token_url = "https://github.com/login/oauth/access_token"
-# optional, for device flow
-device_auth_url = "https://github.com/login/device/code"
-scopes = ["repo", "read:org", "write:org", "workflow"]
-# "auto", "device" or "authcode", "device" requires device_auth_url to be set
-# "auto" will attempt device flow first if supported, then fall back to auth code flow
-preferred_flow = "authcode"
 
-# routes can also be relative to the host
 [providers."gitlab.com"]
+type = "gitlab"
 client_id = "b154e7459101fcfaf18f57fc5a069bc87c0e16f31482f0531272acefcb143f1b"
-# this will be resolved to 'https://gitlab.com/oauth/authorize'
-auth_url = "/oauth/authorize"
-token_url = "/oauth/token"
-device_auth_url = "/oauth/authorize_device"
-scopes = ["read_repository", "write_repository"]
-preferred_flow = "authcode"
 
 [providers."codeberg.org"]
+type = "forgejo"
 client_id = "a52456a6-fb1d-4326-904d-0139f79a3203"
-auth_url = "https://codeberg.org/login/oauth/authorize"
-token_url = "https://codeberg.org/login/oauth/access_token"
-scopes = ["write:repository", "read:repository"]
-preferred_flow = "authcode"
+
+[providers."git.gay"]
+type = "forgejo"
+client_id = "30202081-7a59-4a55-a22c-29fe6e6ad769"
 ```
 
-#### Configure or Override Providers via `git config`
+### Configuration via `git config`
 
-You can configure (or override) OAuth providers without editing `oauth.toml` by using specially named git config keys. This works for both global and per‑repository configuration:
+You can configure (or override) OAuth providers without editing `oauth.toml` by using specially named git config keys. This works for both global and per‑repository configuration. (For more explanation please refer to the [configuration section](#configuration) of the README.)
 
 ```bash
-# Global (system/user) provider definition
+git config --global credential.https://git.example.com.oauthType forgejo
 git config --global credential.https://git.example.com.oauthClientId YOUR_CLIENT_ID
-git config --global credential.https://git.example.com.oauthAuthURL /oauth/authorize
-git config --global credential.https://git.example.com.oauthTokenURL /oauth/token
-git config --global credential.https://git.example.com.oauthDeviceAuthURL /oauth/authorize_device
-git config --global credential.https://git.example.com.oauthScopes "read_repository write_repository"
-git config --global credential.https://git.example.com.oauthPreferredFlow authcode
-# Optional secret (if the provider requires one)
-git config --global credential.https://git.example.com.oauthClientSecret YOUR_CLIENT_SECRET
 ```
 
-Per‑repository overrides (placed in that repo’s `.git/config`) automatically take precedence over the same keys defined globally:
+#### Use a Specific Credential per Path
 
-```bash
-# Inside a repository
-git config credential.https://git.example.com.oauthScopes "read_repository"
-```
-
-Supported (case‑insensitive) suffixes after `.oauth`:
-
-- `ClientId`
-- `ClientSecret`
-- `AuthURL`
-- `TokenURL`
-- `DeviceAuthURL`
-- `PreferredFlow`  (values: `auto`, `device`, `authcode`)
-- `Scopes` (whitespace or comma separated list, may be omitted or empty)
-
-##### Rules and Behavior
-
-Precedence (later overrides earlier per field)
-
-- `oauth.toml`
-- global/system git config
-- repo‑local git config
-
-`<base>` (between `credential.` and `.oauth...`) can include a scheme (`https://git.example.com`). If endpoint values start with `/`, they are joined to the base (e.g. `/oauth/token` -> `https://git.example.com/oauth/token`).
-If `<base>` omits a scheme (e.g. `git.example.com`), `https://` is assumed when joining relative paths.
-
-Invalid or incomplete provider entries (missing `client_id`, invalid URLs, etc) are discarded with a warning, exiting entirely if none are valid.
-
-You can mix file and git config: git config can override just one field (for example rotate a `client_id`) without duplicating the whole provider.
-
-Example minimal provider entirely from git config (no `oauth.toml` needed):
-
-```bash
-git config --global credential.https://git.example.com.oauthClientId 123456
-git config --global credential.https://git.example.com.oauthAuthURL https://git.example.com/oauth/authorize
-git config --global credential.https://git.example.com.oauthTokenURL https://git.example.com/oauth/token
-git config --global credential.https://git.example.com.oauthScopes "repo"
-```
-
-You can also specify a custom port for the OAuth callback server by adding a `port = 12345` entry in `oauth.toml` or via git config (e.g. `git config --global warden.port 12346`).
-
-If you want to use this purely as a credential helper without profiles, set `oauth-only = true` either in `oauth.toml` or via git config (e.g. `git config --global warden.oauth-only true`). This makes warden stateless, it will not store tokens in the keyring and each Git credential request triggers a fresh OAuth flow.
-
-I recommend adding the git credential cache to your `~/.gitconfig` to avoid having to log in for every Git operation:
-
-```toml
-[credential]
-helper = cache --timeout=3600
-helper = warden
-```
-
-The global flag `--device` forces the OAuth Device Authorization Grant for all commands that perform an OAuth flow (`get`, `login` and `refresh`). This is useful in headless or SSH-only environments, or when your browser is on another machine.
-Example usages:
-
-```bash
-# force device flow during a Git credential lookup
-git config --global credential.helper 'warden --device'
-
-# or when running explicit commands
-warden --device login
-warden --device refresh
-```
-
-If the provider does not support device flow (no `device_auth_url` configured), warden will fail with an error.
-
-If you *don't* want to use warden purely as a credential helper, read on.
-
-### Use a Specific Credential per Path
-
-If you want Git to pick a specific credential for a user or even a single repository, enable path-aware credential matching and set a username for that URL:
+If you want Git to pick a specific credential for a user/org or even a single repository, enable path-aware credential matching and set a username for that URL:
 
 ```toml
 # in ~/.gitconfig
@@ -196,22 +112,24 @@ helper = warden
 useHttpPath = true  # include the path when matching credentials
 
 # Prefer this username for a single repo (must match your remote URL)
-[credential "https://git.example.com/exampleUser42/repo.git"]
+[credential "https://git.example.com/exampleUser/repo.git"]
 username = credential-name
 
 # Or prefer this username for an entire user/org
-[credential "https://git.example.com/exampleUser42"]
+[credential "https://git.example.com/exampleUser"]
 username = credential-name
 ```
 
-With `useHttpPath = true`, Git passes the full URL (including `/exampleUser42/repo`) to the credential helper and respects different usernames for different paths. Warden will then use the configured username to select the matching stored credential (or prompt you to log in for that username if none exists).
+With `useHttpPath = true`, Git passes the full URL (including `/exampleUser/repo`) to the credential helper and respects different usernames for different paths. Warden will then use the configured username to select the matching stored credential (or prompt you to log in for that username if none exists).
 
 ## Credential Management
 
-Warden implements the Git credential-helper protocol.
-When Git needs credentials, it calls warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username and access token to Git, and stores tokens safely in your system keyring.
+Warden is a fully featured [Git credential helper](https://git-scm.com/docs/gitcredentials).
+When Git needs credentials, it calls warden, which looks up a provider for the host in `oauth.toml`, performs OAuth 2.0 (Auth Code + PKCE or Device Code), returns a username, access token and when provided refresh token to Git, and stores tokens safely in your system keyring.
 
-To manage credentials, run `warden login` to add a credential for a provider and fetch/store a token, `warden logout [--hostname HOST] [--name CRED]` to remove credentials, `warden refresh [--hostname HOST] [--name CRED]` to renew a token, `warden switch [--hostname HOST] [--name CRED]` to change the active credential, and `warden status` to review configured hosts, credentials, and whether a token exists. (These commands are further explained below.)
+The following commands are explained in more detail below.
+
+To manage credentials, run `warden login` to add a credential for a provider and fetch/store a token, `warden logout [--hostname HOST] [--name CRED]` to remove credentials, `warden refresh [--hostname HOST] [--name CRED]` to renew a token, `warden switch [--hostname HOST] [--name CRED]` to change the active credential, and `warden status` to review configured hosts, credentials, and whether a token exists in the system keyring.
 
 These commands make it easy to switch identities and inspect state without editing files.
 
@@ -243,7 +161,7 @@ If you need to refresh an OAuth token (for example, if it has expired or was oth
 warden refresh
 ```
 
-You can specify a hostname and credential name to refresh a specific credential:
+You can specify a hostname and/or credential name to refresh a specific credential:
 
 ```bash
 warden refresh --hostname <hostname> --name <credential name>
@@ -259,7 +177,7 @@ warden switch
 
 If you have two credentials for that provider, warden will toggle between them.
 Otherwise it will prompt you to select one of the available credentials for that OAuth provider.
-You can optionally specify a hostname and credential name to switch to a specific credential:
+You can optionally specify a hostname and/or credential name to switch to a specific credential:
 
 ```bash
 warden switch --hostname <hostname> --name <credential name>
@@ -273,7 +191,7 @@ To log out of an OAuth provider and remove the stored token, run:
 warden logout
 ```
 
-You can specify a hostname and credential name to log out of a specific credential:
+You can specify a hostname and/or credential name to log out of a specific credential:
 
 ```bash
 warden logout --hostname <hostname> --name <credential name>
@@ -282,25 +200,6 @@ warden logout --hostname <hostname> --name <credential name>
 ## Profile Management
 
 Warden allows you to manage multiple Git profiles and apply them to your repositories based on their remote URLs.
-
-### Example Profile Configuration
-
-```toml
-[profiles.default]
-user.name = "Your Name"
-user.email = "your_name@example.personal.com"
-
-[profiles.work]
-user.name = "Your Name (Company Inc.)"
-user.email = "your_name@example.company.com"
-
-[[rules]]
-profile.name = "work"
-owner = "Company" # Applies work profile to all repositories in `Company` org
-
-[[rules]]
-profile.name = "default"
-```
 
 ### List Available Profiles
 
@@ -343,7 +242,186 @@ warden show work
 
 This will print the profile's configuration in a TOML-like format, showing all the git config entries that will be applied when you use that profile.
 
-### Repository Patterns
+## Configuration
+
+Warden looks for configuration files in `$XDG_CONFIG_HOME/warden` or `~/.config/warden` on Linux, and in `~/.config/warden` on other platforms.
+
+The key files are:
+
+- `oauth.toml` for OAuth providers, an optional port override, and the oauth-only setting
+- `profiles.toml` for profiles, rules and patterns
+
+### OAuth
+
+What you see below is what the minimal configuration in [Quick Start](#add-oauth-providers) expands to and all possible other options added and documented.
+
+```toml
+# Optional, see below for more details
+# port = 12346
+# oauth_only = true
+
+[providers."github.com"]
+client_id = "Ov23li8uFPnowNKmRc1h"
+# client secret is usually optional since we use PKCE, but GitHub requires it
+client_secret = "5b364d7edf01e60a2c2c5bfaf51dc7b66f6fb162"
+auth_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+# optional, for device flow
+device_auth_url = "https://github.com/login/device/code"
+scopes = ["repo", "read:org", "write:org", "workflow"]
+# "auto", "device" or "authcode", "device" requires device_auth_url to be set
+# "auto" will attempt device flow first if supported, then fall back to auth code flow
+preferred_flow = "authcode"
+
+# routes can also be relative to the host
+[providers."gitlab.com"]
+client_id = "b154e7459101fcfaf18f57fc5a069bc87c0e16f31482f0531272acefcb143f1b"
+# this will be resolved to 'https://gitlab.com/oauth/authorize'
+auth_url = "/oauth/authorize"
+token_url = "/oauth/token"
+device_auth_url = "/oauth/authorize_device"
+scopes = ["read_repository", "write_repository"]
+preferred_flow = "authcode"
+
+[providers."codeberg.org"]
+client_id = "a52456a6-fb1d-4326-904d-0139f79a3203"
+auth_url = "/login/oauth/authorize"
+token_url = "/login/oauth/access_token"
+scopes = ["write:repository", "read:repository"]
+preferred_flow = "authcode"
+
+[providers."git.gay"]
+client_id = "30202081-7a59-4a55-a22c-29fe6e6ad769"
+auth_url = "/login/oauth/authorize"
+token_url = "/login/oauth/access_token"
+scopes = ["write:repository", "read:repository"]
+preferred_flow = "authcode"
+```
+
+#### Configure or Override Providers via `git config`
+
+You can configure (or override) OAuth providers without editing `oauth.toml` by using specially named git config keys. This works for both global and per‑repository configuration.
+
+```bash
+# Global (system/user) provider definition
+# When you set oauthType, standard endpoints and defaults are auto-filled
+git config --global credential.https://git.example.com.oauthType forgejo
+git config --global credential.https://git.example.com.oauthClientId YOUR_CLIENT_ID
+# Optional secret (if the provider requires one)
+git config --global credential.https://git.example.com.oauthClientSecret YOUR_CLIENT_SECRET
+# You may omit the following fields if oauthType is set, include them to override defaults:
+# git config --global credential.https://git.example.com.oauthAuthURL /oauth/authorize
+# git config --global credential.https://git.example.com.oauthTokenURL /oauth/token
+# git config --global credential.https://git.example.com.oauthDeviceAuthURL /oauth/authorize_device
+# git config --global credential.https://git.example.com.oauthScopes "read_repository write_repository"
+# git config --global credential.https://git.example.com.oauthPreferredFlow authcode
+```
+
+To replicate the minimal configuration in [Quick Start](#add-oauth-providers) you would have to run this:
+
+```bash
+git config --global credential.helper warden
+git config --global credential.https://github.com.oauthType github
+git config --global credential.https://github.com.oauthClientId Ov23li8uFPnowNKmRc1h
+git config --global credential.https://github.com.oauthClientSecret 5b364d7edf01e60a2c2c5bfaf51dc7b66f6fb162
+git config --global credential.https://gitlab.com.oauthType gitlab
+git config --global credential.https://gitlab.com.oauthClientId b154e7459101fcfaf18f57fc5a069bc87c0e16f31482f0531272acefcb143f1b
+git config --global credential.https://codeberg.org.oauthType forgejo
+git config --global credential.https://codeberg.org.oauthClientId a52456a6-fb1d-4326-904d-0139f79a3203
+git config --global credential.https://git.gay.oauthType forgejo
+git config --global credential.https://git.gay.oauthClientId 30202081-7a59-4a55-a22c-29fe6e6ad769
+```
+
+Per‑repository overrides (added via that repo's `.git/config`) automatically take precedence over the same keys defined globally:
+
+```bash
+# Inside a repository
+git config credential.https://git.example.com.oauthScopes "read_repository"
+```
+
+Supported (case‑insensitive) suffixes after `.oauth`:
+
+- `Type` (values: `github`, `gitlab`, `forgejo`, `gitea`)
+- `ClientId`
+- `ClientSecret`
+- `AuthURL`
+- `TokenURL`
+- `DeviceAuthURL`
+- `PreferredFlow`  (values: `auto`, `device`, `authcode`)
+- `Scopes` (whitespace or comma separated list, may be omitted or empty)
+
+#### Rules and Behavior
+
+Precedence (later overrides earlier per field)
+
+- `oauth.toml`
+- global/system git config
+- repo‑local git config
+
+In the git config, `<base>` (between `credential.` and `.oauth...`) can include a scheme (`https://git.example.com`). If endpoint values start with `/`, they are joined to the base (e.g. `/oauth/token` -> `https://git.example.com/oauth/token`).
+If `<base>` omits a scheme (e.g. `git.example.com`), `https://` is assumed when joining relative paths.
+
+Invalid or incomplete provider entries (missing `client_id`, invalid URLs, etc) are discarded with a warning, exiting entirely if none are valid.
+
+You can also specify a custom port for the OAuth callback server by adding a `port = 12345` entry in `oauth.toml` or via git config (e.g. `git config --global warden.port 12346`).
+
+#### OAuth-only Mode
+
+If you want to use warden purely as a credential helper without profiles or state (saved credentials), set `oauth-only = true` either in `oauth.toml` or via git config (e.g. `git config --global warden.oauth-only true`). This makes warden stateless, it will not store tokens in the keyring and each Git credential request triggers a fresh OAuth flow.
+
+I recommend adding the git credential cache to your `~/.gitconfig` to avoid having to log in for every Git operation:
+
+```toml
+[credential]
+helper = cache --timeout=3600
+helper = warden
+```
+
+The global flag `--device` forces the OAuth Device Authorization Grant for all commands that perform an OAuth flow (`get`, `login` and `refresh`). This is useful in headless or SSH-only environments, or when your browser is on another machine.
+
+Example usages:
+
+```bash
+# force device flow during a Git credential lookup
+git config --global credential.helper 'warden --device'
+
+# or when running explicit commands
+warden --device login
+warden --device refresh
+```
+
+If the provider does not support device flow (no `device_auth_url` configured), warden will fail with an error.
+
+### Profile Configuration
+
+#### Example Profile Configuration
+
+```toml
+[profiles.default]
+user.name = "Your Name"
+user.email = "your_name@example.personal.com"
+
+[profiles.work]
+user.name = "Your Name (Company Inc.)"
+user.email = "your_name@example.company.com"
+
+[[rules]]
+profile.name = "work"
+owner = "Company" # Applies work profile to all repositories in 'Company' org
+
+[[rules]]
+profile.name = "work"
+host = "example.company.com" # Applies work profile to all repositories with a remote at 'example.company.com'
+
+[[rules]]
+profile.name = "work"
+repo = "company-project-1" # Applies work profile to all repositories named 'company-project-1'
+
+[[rules]]
+profile.name = "default"
+```
+
+#### Repository Patterns
 
 Repository patterns let you control how warden parses repository remotes to extract host, owner, and repo for rule matching. Patterns are evaluated top-to-bottom; the first that matches is used. You configure them in `~/.config/warden/profiles.toml` with `[[patterns]]` entries.
 
@@ -357,9 +435,10 @@ Warden ships with defaults that already handle common forms like:
 - `git@host:owner/repo(.git)`
 - `host:owner/repo`
 - `owner/repo`
+
 You usually do not need to change these, but you can add more for custom hosts or layouts.
 
-Example configuration:
+##### Example Pattern Configuration
 
 ```toml
 # Match SSH style like git@github.com:org/repo(.git)
@@ -386,8 +465,10 @@ These parsed components are used by `[[rules]]` to decide which profile to apply
 ```toml
 [[rules]]
 profile.name = "work"
-host = "gitlab.com"
+host = "git.example.com"
 owner = "Company"
+# though it does not make much sense here, you could also match by repo name:
+# repo = "some-repo"
 ```
 
 ## License

@@ -161,12 +161,12 @@ async fn main() -> Result<()> {
                 cli.device,
             )
             .await
-            .context("Failed to refresh credentials")?;
+            .context("Failed to refresh credential")?;
         },
         Command::Switch { hostname, name } => {
             let mut hosts_config = Hosts::load().context("Failed to load hosts configuration")?;
             commands::switch::switch(&mut hosts_config, hostname.as_ref(), name.as_ref())
-                .context("Failed to switch credentials")?;
+                .context("Failed to switch credential")?;
         },
         Command::Status => {
             let hosts_config = Hosts::load().context("Failed to load hosts configuration")?;

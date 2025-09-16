@@ -1,7 +1,7 @@
 [package]
 name = "warden"
 authors = ["Adolar0042"]
-version = "1.2.4"
+version = "1.2.5"
 license = "GPL-3.0"
 edition = "2024"
 description = "A CLI for Git profiles and OAuth credentials, with rule-based profile selection and a built-in git credential helper."

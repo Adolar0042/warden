@@ -8,6 +8,7 @@ use config::{ConfigError, Source, Value};
 /// pattern `credential.<base>.oauth<Suffix>`
 ///
 /// Supported (case-insensitive) suffixes:
+///   - `Type`
 ///   - `ClientId`
 ///   - `ClientSecret`
 ///   - `AuthURL`
@@ -164,6 +165,9 @@ impl Source for GitConfigSource {
                             "device_auth_url".into(),
                             Value::from(resolve_endpoint(raw_value)),
                         );
+                    },
+                    "type" => {
+                        table.insert("type".into(), Value::from(raw_value.to_string()));
                     },
                     "preferredflow" => {
                         table.insert("preferred_flow".into(), Value::from(raw_value.to_string()));

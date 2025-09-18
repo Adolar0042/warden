@@ -102,7 +102,7 @@ async fn bind_listener(config: &OAuthConfig) -> Result<(TcpListener, String)> {
     Ok((listener, redirect_addr))
 }
 
-/// Open the user's browser (best‑effort) and wait for the redirect, capturing
+/// Open the user's browser (best-effort) and wait for the redirect, capturing
 /// the authorization code.
 ///
 /// Emits a minimal HTTP response so the user can close the browser tab.

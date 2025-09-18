@@ -42,7 +42,7 @@ crossterm = "0.29"
 ctrlc = "3.4"
 chrono = "0.4"
 fuzzy-matcher = "0.3"
-zeroize = { version = "1.8", features = ["derive", "simd"] }
+zeroize = { version = "1.8", features = ["derive"] }
 
 [features]
 default = []

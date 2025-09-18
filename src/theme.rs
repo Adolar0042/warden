@@ -233,7 +233,7 @@ impl Theme for InputTheme {
         if highlight_matches
             && let Some((_score, indices)) = matcher.fuzzy_indices(text, search_term)
         {
-            // indices are byte offsets; iterate with char_indices
+            // indices are byte offsets, iterate with char_indices
             let mut j = 0;
             for (byte_idx, ch) in text.char_indices() {
                 if j < indices.len() && indices[j] == byte_idx {

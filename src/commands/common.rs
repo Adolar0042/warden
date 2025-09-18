@@ -18,7 +18,7 @@ impl CredentialPair {
         }
     }
 
-    /// Returns credential (host)
+    /// Returns "credential (host)"
     #[inline]
     pub fn label_credential_host(&self) -> String {
         format!("{} ({})", self.credential, self.host)
@@ -27,7 +27,7 @@ impl CredentialPair {
 
 /// Collect all (host, credential) pairs from the `Hosts` config.
 ///
-/// Unsorted; callers can invoke `sort_pairs` for deterministic ordering.
+/// Unsorted, callers can invoke `sort_pairs` for deterministic ordering.
 pub fn collect_all_pairs(hosts: &Hosts) -> Vec<CredentialPair> {
     hosts
         .hosts()
@@ -66,10 +66,10 @@ pub fn filter_pairs<'a, T: IntoIterator<Item = &'a CredentialPair>>(
         .collect()
 }
 
-/// Produce a standardized styled error line. *Does not* add a trailing newline.
+/// Print a standardized styled error line.
 #[inline]
-pub fn styled_error_line<T: AsRef<str>>(msg: T) -> String {
-    format!("  {} - {}", "Error".red().bold(), msg.as_ref())
+pub fn styled_error<T: AsRef<str>>(msg: T) {
+    eprintln!("  {} - {}", "Error".red().bold(), msg.as_ref());
 }
 
 /// Turn a slice of `CredentialPair` into "credential (host)" labels
@@ -174,14 +174,5 @@ mod tests {
         sort_pairs(&mut pairs);
         let labels = labels_credential_host(&pairs);
         assert!(labels.iter().any(|l| l == "alice (github.com)"));
-    }
-
-    #[test]
-    fn test_styled_error_line() {
-        let line = styled_error_line("Problem happened");
-        assert!(
-            line.contains("Problem happened"),
-            "Styled line missing message: {line}"
-        );
     }
 }

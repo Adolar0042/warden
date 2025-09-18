@@ -5,6 +5,7 @@ use anyhow::{Context as _, Result};
 use config::{Config, File};
 use serde::{Deserialize, Serialize};
 
+use crate::config::LoadableConfig;
 use crate::keyring::erase_keyring_token;
 use crate::utils::config_dir;
 
@@ -24,22 +25,24 @@ pub struct Hosts {
     inner: HashMap<String, HostConfig>,
 }
 
-impl Hosts {
+impl LoadableConfig for Hosts {
+    const KIND: &'static str = "hosts";
+
     /// Load host states from the standard config directory
     ///
     /// The on-disk format is an (optionally nested) TOML map stored in
     /// `.hosts.toml`:
     ///
     /// ```toml
-    /// [github.com]
+    /// [example.com]
     /// active = "alice"
     /// users = ["alice", "bob"]
     ///
-    /// [gitlab.example.com]
+    /// [git.example-url.com]
     /// active = "carol"
     /// users = ["carol"]
     /// ```
-    pub fn load() -> Result<Self> {
+    fn load_raw() -> Result<Self> {
         let path = config_dir()?.join(".hosts.toml");
         let builder = Config::builder().add_source(File::from(path).required(false));
         let settings = builder
@@ -65,7 +68,9 @@ impl Hosts {
             .context("Failed to flatten nested hosts configuration")?;
         Ok(Self::from_map(flat))
     }
+}
 
+impl Hosts {
     fn flatten_hosts(
         prefix: &str,
         v: &serde_json::Value,
@@ -205,6 +210,11 @@ impl Hosts {
             self.write()?;
         }
         Ok(removed)
+    }
+
+    /// True if the host is present in the map
+    pub fn has_host(&self, host: &str) -> bool {
+        self.inner.contains_key(host)
     }
 
     /// Get mutable access to a host's state (non-persisted).

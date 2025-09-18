@@ -5,20 +5,22 @@
 // Local modifications:
 // Copyright (c) 2025 Adolar0042
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use colored::Colorize as _;
 use git2::Repository;
 use tracing::instrument;
 
-use crate::commands::common::styled_error_line;
+use crate::commands::common::styled_error;
 use crate::config::ProfileConfig;
+use crate::load_cfg;
 use crate::profile::rule::ProfileRef;
 use crate::profile::url::{Patterns, Url as RepoUrl};
 
 const INHERIT: &str = "(inherit)";
 
-#[instrument(skip(profile_config))]
-pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Result<()> {
+#[instrument]
+pub fn apply(profile_name: Option<String>) -> Result<()> {
+    let profile_config = load_cfg!(ProfileConfig)?;
     if let Some(name) = profile_name {
         let profile_ref = ProfileRef { name };
         let profile = profile_config
@@ -32,14 +34,14 @@ pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Re
     } else {
         let repo = Repository::open_from_env();
         let Ok(repo) = repo else {
-            eprintln!("{}", styled_error_line("Not a git repository!"));
-            return Ok(());
+            styled_error("Not a git repository!");
+            bail!("Not a git repository!");
         };
 
         let remote = repo.find_remote("origin");
         let Ok(remote) = remote else {
-            eprintln!("{}", styled_error_line("No remote named 'origin' found"));
-            return Ok(());
+            styled_error("No remote named 'origin' found");
+            bail!("No remote named 'origin' found");
         };
         let remote_url = remote.url().expect("No remote url");
         let url: RepoUrl = match RepoUrl::from_str(remote_url, &profile_config.patterns, None) {
@@ -50,14 +52,11 @@ pub fn apply(profile_name: Option<String>, profile_config: &ProfileConfig) -> Re
         let rule = profile_config.rules.resolve(&url);
         match rule {
             None => {
-                eprintln!(
-                    "{}",
-                    styled_error_line(format!(
-                        "No profile found for [{}].",
-                        &url.to_string().bold()
-                    ))
-                );
-                return Ok(());
+                styled_error(format!(
+                    "No profile found for [{}].",
+                    &url.to_string().bold()
+                ));
+                bail!("No rule matched for remote {}", &url.to_string());
             },
             Some(rule) => {
                 let profile = profile_config

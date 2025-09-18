@@ -2,11 +2,12 @@ use anyhow::{Context as _, Result, bail};
 use chrono::{DateTime, Utc};
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::commands::common::styled_error_line;
+use crate::commands::common::styled_error;
 use crate::commands::login::login;
 use crate::commands::{print_token, print_token_checked};
 use crate::config::{Hosts, OAuthConfig, ProviderConfig};
 use crate::keyring::{Token, get_keyring_token};
+use crate::load_cfg;
 use crate::oauth::{device_code, get_access_token};
 use crate::utils::{CredentialRequest, parse_credential_request};
 
@@ -36,19 +37,18 @@ async fn maybe_print_with_refresh_token(
     Ok(false)
 }
 
-#[instrument(skip(oauth_config, hosts_config))]
-pub async fn handle_get(
-    oauth_config: OAuthConfig,
-    hosts_config: &mut Hosts,
-    force_device: bool,
-) -> Result<()> {
+#[instrument]
+pub async fn handle_get(force_device: bool) -> Result<()> {
     info!("Retrieving credentials...");
     let req = parse_credential_request().context("Failed to parse credential request")?;
     debug!("{:#?}", &req);
 
+    let oauth_config = load_cfg!(OAuthConfig)?;
+    let mut hosts_config = load_cfg!(Hosts)?;
+
     // Lookup OAuth provider by host
     let Some(provider) = oauth_config.providers.get(&req.host) else {
-        // No config for this host: allow Git to try the next helper.
+        // No config for this host, allow Git to try the next helper
         warn!("No OAuth provider configuration found for {}", req.host);
         return Ok(());
     };
@@ -100,10 +100,8 @@ pub async fn handle_get(
             " No active credential found for host {}.\n Please login first.",
             req.host
         );
-        login(&oauth_config, hosts_config, force_device)
-            .await
-            .context("Failed to login")?;
-        *hosts_config = Hosts::load().context("Failed to reload hosts configuration")?;
+        login(force_device).await.context("Failed to login")?;
+        hosts_config = load_cfg!(Hosts)?;
         active_credential = hosts_config.get_active_credential(&req.host);
         if active_credential.is_none() || active_credential.is_some_and(str::is_empty) {
             error!("No active credential found for host {}", req.host);
@@ -127,14 +125,14 @@ pub async fn handle_get(
         return Ok(());
     }
 
-    warn!("No credential found for '{username}' on '{}'.", req.host);
-    eprintln!(
-        "{}",
-        styled_error_line(format!(
-            "No credential found for user '{username}' on host '{}'.",
-            req.host
-        ))
+    warn!(
+        "No credential found for '{username}' on host '{}'.",
+        req.host
     );
+    styled_error(format!(
+        "No credential found for user '{username}' on host '{}'.",
+        req.host
+    ));
 
     Ok(())
 }

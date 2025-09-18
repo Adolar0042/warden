@@ -27,13 +27,13 @@ fn emit_token_lines(username: &str, token: &Token) {
     }
 }
 
-/// Prints the token in the format expected by Git.
+/// Prints the token in the format expected by Git
 pub fn print_token(token: &Token, username: &str) {
     emit_token_lines(username, token);
 }
 
 /// Prints the token in the format expected by Git, refreshing the token when
-/// needed and possible.
+/// needed and possible
 pub async fn print_token_checked(
     token: &mut Token,
     username: &str,

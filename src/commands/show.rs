@@ -8,17 +8,16 @@
 use anyhow::{Result, bail};
 use tracing::instrument;
 
-use crate::commands::common::styled_error_line;
+use crate::commands::common::styled_error;
 use crate::config::ProfileConfig;
+use crate::load_cfg;
 use crate::profile::rule::ProfileRef;
 
 #[instrument]
-pub fn show(profile_ref: &ProfileRef, profile_config: &ProfileConfig) -> Result<()> {
+pub fn show(profile_ref: &ProfileRef) -> Result<()> {
+    let profile_config = load_cfg!(ProfileConfig)?;
     let Some(profile) = profile_config.profiles.get(&profile_ref.name) else {
-        eprintln!(
-            "{}",
-            styled_error_line(format!("Unknown profile: {}", &profile_ref.name))
-        );
+        styled_error(format!("Unknown profile: {}", &profile_ref.name));
         bail!("Unknown profile: {}", &profile_ref.name);
     };
 

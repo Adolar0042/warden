@@ -3,20 +3,18 @@ use colored::Colorize as _;
 use tracing::instrument;
 
 use crate::commands::common::{
-    collect_all_pairs, filter_pairs, labels_credential_host, sort_pairs, styled_error_line,
+    collect_all_pairs, filter_pairs, labels_credential_host, sort_pairs, styled_error,
 };
 use crate::config::Hosts;
+use crate::load_cfg;
 use crate::utils::select_index;
 
-#[instrument(skip(hosts_config))]
-pub fn logout(
-    hosts_config: &mut Hosts,
-    hostname: Option<&String>,
-    name: Option<&String>,
-) -> Result<()> {
-    let mut pairs = collect_all_pairs(hosts_config);
+#[instrument]
+pub fn logout(hostname: Option<&String>, name: Option<&String>) -> Result<()> {
+    let mut hosts_config = load_cfg!(Hosts)?;
+    let mut pairs = collect_all_pairs(&hosts_config);
     if pairs.is_empty() {
-        eprintln!("{}", styled_error_line("No credentials found to logout"));
+        styled_error("No credentials found to logout");
         bail!("No credentials found to logout");
     }
     sort_pairs(&mut pairs);
@@ -30,22 +28,22 @@ pub fn logout(
         match (hostname, name) {
             (Some(h), Some(n)) => {
                 let msg = format!("No credentials found for '{n}' on {h}");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (Some(h), None) => {
                 let msg = format!("No credentials found for {h}");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (None, Some(n)) => {
                 let msg = format!("No credentials found for '{n}'");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (None, None) => {
                 let msg = "No credentials found to logout.".to_string();
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
         }
@@ -71,7 +69,7 @@ pub fn logout(
             "Failed to remove credential {} for host {} from hosts configuration.",
             target.credential, target.host
         );
-        eprintln!("{}", styled_error_line(&msg));
+        styled_error(&msg);
         bail!(msg);
     }
     eprintln!(

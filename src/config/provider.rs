@@ -6,7 +6,9 @@ use serde::Deserialize;
 use tracing::warn;
 use url::Url;
 
+use crate::config::LoadableConfig;
 use crate::config::git_source::GitConfigSource;
+use crate::utils::config_dir;
 
 struct ProviderDefaults {
     auth_path: &'static str,
@@ -89,10 +91,12 @@ pub struct OAuthConfig {
     pub oauth_only: Option<bool>,
 }
 
-impl OAuthConfig {
+impl LoadableConfig for OAuthConfig {
+    const KIND: &'static str = "OAuth";
+
     /// Load and merge configuration sources
-    pub fn load() -> Result<Self> {
-        let config_file = crate::utils::config_dir()?.join("oauth.toml");
+    fn load_raw() -> Result<Self> {
+        let config_file = config_dir()?.join("oauth.toml");
 
         let builder = Config::builder()
             .add_source(File::from(config_file).required(false))

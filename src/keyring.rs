@@ -7,15 +7,17 @@ use chrono::{DateTime, Utc};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::config::ProviderConfig;
 use crate::oauth::refresh_access_token;
 
 #[expect(clippy::struct_field_names, reason = "name is intended")]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct Token {
     access_token: String,
     refresh_token: Option<String>,
+    #[zeroize(skip)]
     pub expires_at: Option<DateTime<Utc>>,
 }
 

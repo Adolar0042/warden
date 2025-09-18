@@ -7,24 +7,21 @@ use crossterm::execute;
 use dialoguer::Confirm;
 
 use crate::commands::common::{
-    CredentialPair, collect_all_pairs, filter_pairs, sort_pairs, styled_error_line,
+    CredentialPair, collect_all_pairs, filter_pairs, sort_pairs, styled_error,
 };
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::{get_keyring_token, store_keyring_token};
+use crate::load_cfg;
 use crate::oauth::{get_access_token, refresh_access_token};
 use crate::theme::InputTheme;
 use crate::utils::select_index;
 
-pub async fn refresh(
-    oauth_config: &OAuthConfig,
-    hosts_config: &Hosts,
-    host: Option<&str>,
-    name: Option<&str>,
-    force_device: bool,
-) -> Result<()> {
-    let mut pairs = collect_all_pairs(hosts_config);
+pub async fn refresh(host: Option<&str>, name: Option<&str>, force_device: bool) -> Result<()> {
+    let oauth_config = load_cfg!(OAuthConfig)?;
+    let hosts_config = load_cfg!(Hosts)?;
+    let mut pairs = collect_all_pairs(&hosts_config);
     if pairs.is_empty() {
-        eprintln!("{}", styled_error_line("No credentials found to refresh"));
+        styled_error("No credentials found to refresh");
         bail!("No credentials found to refresh");
     }
     sort_pairs(&mut pairs);
@@ -35,22 +32,22 @@ pub async fn refresh(
         match (host, name) {
             (Some(h), Some(n)) => {
                 let msg = format!("No credentials found for '{n}' on {h}");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (Some(h), None) => {
                 let msg = format!("No credentials found for {h}");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (None, Some(n)) => {
                 let msg = format!("No credentials found for '{n}'");
-                eprintln!("{}", styled_error_line(&msg));
+                styled_error(&msg);
                 bail!(msg);
             },
             (None, None) => {
-                let msg = "No credentials found to refresh.".to_string();
-                eprintln!("{}", styled_error_line(&msg));
+                let msg = "No credentials found to refresh".to_string();
+                styled_error(&msg);
                 bail!(msg);
             },
         }
@@ -72,11 +69,11 @@ pub async fn refresh(
         filtered[selection].clone()
     };
 
-    refresh_one(oauth_config, &target, force_device).await
+    refresh_one(&oauth_config, &target, force_device).await
 }
 
 /// Refresh a single credential, use refresh token if present and approved,
-/// otherwise run a full OAuth flow.
+/// otherwise run a full OAuth flow
 async fn refresh_one(
     oauth_config: &OAuthConfig,
     pair: &CredentialPair,

@@ -1,20 +1,42 @@
 use anyhow::{Context as _, Result, bail};
 use colored::Colorize as _;
+use git2::Repository;
 use tracing::instrument;
 
 use crate::commands::common::{
     CredentialPair, collect_all_pairs, filter_pairs, labels_credential_host, labels_host_active,
-    sort_pairs, styled_error_line,
+    sort_pairs, styled_error,
 };
-use crate::config::Hosts;
+use crate::config::{Hosts, ProfileConfig};
+use crate::load_cfg;
+use crate::profile::url::{Patterns, Url as RepoUrl};
 use crate::utils::select_index;
 
-#[instrument(skip(hosts_config))]
-pub fn switch(
-    hosts_config: &mut Hosts,
-    hostname: Option<&String>,
-    name: Option<&String>,
-) -> Result<()> {
+#[instrument]
+pub fn switch(hostname: Option<&String>, name: Option<&String>, show_all: bool) -> Result<()> {
+    let hosts_config = &mut load_cfg!(Hosts)?;
+    let profile_config = load_cfg!(ProfileConfig)?;
+    if hostname.is_none_or(|h| h.trim().is_empty()) && !show_all {
+        let repo = Repository::open_from_env();
+        let Ok(repo) = repo else {
+            styled_error("Not a git repository!");
+            bail!("Not a git repository!");
+        };
+
+        let remote = repo.find_remote("origin");
+        if let Ok(remote) = remote {
+            let remote_url = remote.url().expect("No remote url");
+            let url: RepoUrl = match RepoUrl::from_str(remote_url, &profile_config.patterns, None) {
+                Ok(u) => u,
+                Err(_) => RepoUrl::from_str(remote_url, &Patterns::default(), None)?,
+            };
+            let host = url.host.to_string();
+            if hosts_config.has_host(&host) {
+                // only use the repo host if it is known
+                return switch_by_host(hosts_config, &host);
+            }
+        }
+    }
     match (hostname, name) {
         (Some(host), Some(credential)) => {
             activate(hosts_config, host, credential).with_context(|| {
@@ -35,12 +57,9 @@ pub fn switch(
 
 fn activate(hosts_config: &mut Hosts, host: &str, credential: &str) -> Result<()> {
     if !hosts_config.has_credential(host, credential) {
-        eprintln!(
-            "{}",
-            styled_error_line(format!(
-                "No credential named '{credential}' found for host '{host}'",
-            ))
-        );
+        styled_error(format!(
+            "No credential named '{credential}' found for host '{host}'",
+        ));
         bail!("No credential named '{credential}' found for host '{host}'");
     }
     hosts_config
@@ -62,7 +81,7 @@ fn switch_by_host(hosts_config: &mut Hosts, host: &str) -> Result<()> {
 
     if credentials.is_empty() {
         let msg = format!("No credentials found for host '{host}'");
-        eprintln!("{}", styled_error_line(&msg));
+        styled_error(&msg);
         bail!(msg);
     }
 

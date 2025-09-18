@@ -4,34 +4,14 @@ Warden does two things for your Git workflow: Git profile management and OAuth-b
 
 Best-effort mirrors of this repository are maintained at [codeberg.org](https://codeberg.org/adolar0042/warden) and [git.gay](https://git.gay/adolar0042/warden). No guarantees are provided about their freshness or availability.
 
-<!--toc:start-->
-- [Install](#install)
-- [Quick Start](#quick-start)
-  - [Configure Git to use warden as a Credential Helper](#configure-git-to-use-warden-as-a-credential-helper)
-  - [Add OAuth Providers](#add-oauth-providers)
-  - [Configuration via `git config`](#configuration-via-git-config)
-    - [Use a Specific Credential per Path](#use-a-specific-credential-per-path)
-- [Credential Management](#credential-management)
-  - [Log In to an OAuth Provider](#log-in-to-an-oauth-provider)
-  - [Check Your Configured Credentials](#check-your-configured-credentials)
-  - [Refresh a Credential](#refresh-a-credential)
-  - [Switch Credentials for an OAuth Provider](#switch-credentials-for-an-oauth-provider)
-  - [Log Out of an OAuth Provider](#log-out-of-an-oauth-provider)
-- [Profile Management](#profile-management)
-  - [List Available Profiles](#list-available-profiles)
-  - [Apply a Profile to a Repository](#apply-a-profile-to-a-repository)
-  - [Show a Profile's Configuration](#show-a-profiles-configuration)
-- [Configuration](#configuration)
-  - [OAuth](#oauth)
-    - [Configure or Override Providers via `git config`](#configure-or-override-providers-via-git-config)
-    - [Rules and Behavior](#rules-and-behavior)
-    - [OAuth-only Mode](#oauth-only-mode)
-  - [Profile Configuration](#profile-configuration)
-    - [Example Profile Configuration](#example-profile-configuration)
-    - [Repository Patterns](#repository-patterns)
-      - [Example Pattern Configuration](#example-pattern-configuration)
-- [License](#license)
-<!--toc:end-->
+## Table of Contents
+
+[Install](#install)
+[Quick Start](#quick-start)
+[Credential Management](#credential-management)
+[Profile Management](#profile-management)
+[Configuration](#configuration)
+[License](#license)
 
 ## Install
 

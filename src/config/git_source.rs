@@ -29,7 +29,7 @@ use config::{ConfigError, Source, Value};
 ///   - If `<base>` already includes a scheme, that scheme is kept.
 ///   - Otherwise `https://` is prefixed when constructing absolute URLs.
 ///
-/// Dots in `<base>` (hostnames like "gitlab.example.com") are preserved because
+/// Dots in `<base>` (hostnames like "git.example.com") are preserved because
 /// we construct a nested `providers` table instead of emitting flattened
 /// dotted keys. That avoids the config crate treating dots as path separators
 /// in the provider key itself.
@@ -76,7 +76,7 @@ impl Source for GitConfigSource {
         let git_cfg_opt = match self.mode {
             GitSourceMode::GlobalAndSystem => Git2Config::open_default().ok(),
             GitSourceMode::RepoLocal => {
-                Repository::discover(".")
+                Repository::open_from_env()
                     .ok()
                     .and_then(|repo| repo.config().ok())
             },
@@ -110,7 +110,7 @@ impl Source for GitConfigSource {
                 let raw_base = &rest[..oauth_pos];
                 let suffix = &rest[oauth_pos + ".oauth".len()..];
                 if suffix.is_empty() {
-                    // no suffix -> cannot map
+                    // no suffix, cannot map
                     continue;
                 }
 
@@ -189,6 +189,7 @@ impl Source for GitConfigSource {
                     },
                     _ => {
                         // unrecognized suffix, ignore
+                        continue;
                     },
                 }
 

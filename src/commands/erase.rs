@@ -3,10 +3,12 @@ use tracing::{info, instrument, warn};
 
 use crate::config::OAuthConfig;
 use crate::keyring::erase_keyring_token;
+use crate::load_cfg;
 use crate::utils::parse_credential_request;
 
-#[instrument(skip(oauth_config))]
-pub async fn handle_erase(oauth_config: OAuthConfig) -> Result<()> {
+#[instrument]
+pub async fn handle_erase() -> Result<()> {
+    let oauth_config = load_cfg!(OAuthConfig)?;
     if oauth_config.oauth_only.is_some_and(|x| x) {
         return Ok(());
     }

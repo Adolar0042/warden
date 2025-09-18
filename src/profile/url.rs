@@ -15,7 +15,6 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_with::DeserializeFromStr;
 
-const GITHUB_COM: &str = "github.com";
 const GIT_EXTENSION: &str = ".git";
 const EXTENSIONS: &[&str] = &[GIT_EXTENSION];
 
@@ -65,7 +64,7 @@ pub struct Match {
 /// Describes how to parse and optionally canonicalize repository identifiers or
 /// URLs.
 ///
-/// Patterns are tried in order; the first one that matches is used.
+/// Patterns are tried in order, the first one that matches is used.
 /// You can define them in your `profiles.toml` using `[[patterns]]`.
 ///
 /// Minimum requirement:
@@ -80,7 +79,7 @@ pub struct Match {
 /// - `owner`: organization or user (e.g., "torvalds").
 ///
 /// Behavior controls:
-/// - `infer = true`: do not store the original string; instead render a canonical form
+/// - `infer = true`: do not store the original string, instead render a canonical form
 ///   based on captured/defaulted fields (e.g., `https://host/owner/repo.git` or
 ///   `user@host:owner/repo.git`).
 /// - `infer = false` or omitted: keep the original string as the "raw" value
@@ -334,6 +333,8 @@ impl Display for Scheme {
 pub enum Host {
     #[default]
     GitHub,
+    GitLab,
+    Codeberg,
     Unknown(String),
 }
 
@@ -342,7 +343,9 @@ impl FromStr for Host {
 
     fn from_str(s: &str) -> std::result::Result<Self, Infallible> {
         Ok(match s.to_ascii_lowercase().as_str() {
-            GITHUB_COM => Self::GitHub,
+            "github.com" => Self::GitHub,
+            "gitlab.com" => Self::GitLab,
+            "codeberg.org" => Self::Codeberg,
             _ => Self::Unknown(s.to_string()),
         })
     }
@@ -351,7 +354,9 @@ impl FromStr for Host {
 impl Display for Host {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::GitHub => write!(f, "{GITHUB_COM}"),
+            Self::GitHub => write!(f, "github.com"),
+            Self::GitLab => write!(f, "gitlab.com"),
+            Self::Codeberg => write!(f, "codeberg.org"),
             Self::Unknown(s) => write!(f, "{s}"),
         }
     }
@@ -437,7 +442,6 @@ impl Url {
     }
 
     fn remove_extensions(s: &str) -> String {
-        // Simplified: drop itertools dependency
         let mut out = s;
         for ext in EXTENSIONS {
             if out.ends_with(ext) {
@@ -564,7 +568,7 @@ mod tests {
                 vcs: Vcs::Git,
                 scheme: Scheme::Https,
                 user: None,
-                host: Host::Unknown("gitlab.com".to_string()),
+                host: Host::GitLab,
                 owner: "username".to_string(),
                 repo: "username.github.io".to_string(),
                 ..Default::default()

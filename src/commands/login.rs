@@ -10,16 +10,15 @@ use tracing::instrument;
 
 use crate::config::{Hosts, OAuthConfig};
 use crate::keyring::store_keyring_token;
+use crate::load_cfg;
 use crate::oauth::get_access_token;
 use crate::theme::InputTheme;
 use crate::utils::{config_dir, select_index};
 
-#[instrument(skip(oauth_config, hosts_config))]
-pub async fn login(
-    oauth_config: &OAuthConfig,
-    hosts_config: &mut Hosts,
-    force_device: bool,
-) -> Result<()> {
+#[instrument]
+pub async fn login(force_device: bool) -> Result<()> {
+    let oauth_config = load_cfg!(OAuthConfig)?;
+    let mut hosts_config = load_cfg!(Hosts)?;
     let _ = ctrlc::set_handler(|| {
         let _ = execute!(stderr(), Show);
         exit(130);
@@ -70,7 +69,7 @@ pub async fn login(
         }
     }
 
-    let token = get_access_token(oauth_config, providers[selection], force_device)
+    let token = get_access_token(&oauth_config, providers[selection], force_device)
         .await
         .context("Failed to get access token")?;
 

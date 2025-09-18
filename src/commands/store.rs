@@ -1,13 +1,15 @@
 use anyhow::{Context as _, Result, bail};
 use tracing::{info, instrument, warn};
 
-use crate::commands::common::styled_error_line;
+use crate::commands::common::styled_error;
 use crate::config::OAuthConfig;
 use crate::keyring::{Token, store_keyring_token};
+use crate::load_cfg;
 use crate::utils::parse_credential_request;
 
-#[instrument(skip(oauth_config))]
-pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
+#[instrument]
+pub async fn handle_store() -> Result<()> {
+    let oauth_config = load_cfg!(OAuthConfig)?;
     if oauth_config.oauth_only.is_some_and(|x| x) {
         return Ok(());
     }
@@ -27,7 +29,7 @@ pub async fn handle_store(oauth_config: OAuthConfig) -> Result<()> {
     } else {
         let msg = "No username or password provided in request; nothing to store.";
         warn!("{msg}");
-        eprintln!("{}", styled_error_line(msg));
+        styled_error(msg);
         bail!(msg)
     }
 }

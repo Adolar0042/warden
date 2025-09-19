@@ -6,12 +6,12 @@ Best-effort mirrors of this repository are maintained at [codeberg.org](https://
 
 ## Table of Contents
 
-[Install](#install)
-[Quick Start](#quick-start)
-[Credential Management](#credential-management)
-[Profile Management](#profile-management)
-[Configuration](#configuration)
-[License](#license)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Credential Management](#credential-management)
+- [Profile Management](#profile-management)
+- [Configuration](#configuration)
+- [License](#license)
 
 ## Install
 

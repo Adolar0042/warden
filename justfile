@@ -11,25 +11,25 @@ default:
     @just --list
 
 build *FLAGS:
-    cargo build 
+    cargo build {{FLAGS}}
 
 run *FLAGS:
-    cargo run 
+    cargo run {{FLAGS}}
 
 test *FLAGS:
-    cargo test 
+    cargo test {{FLAGS}}
 
 bench *FLAGS:
-    cargo bench 
+    cargo bench {{FLAGS}}
 
 fmt *FLAGS:
-    cargo fmt 
+    cargo fmt {{FLAGS}}
 
 clippy *FLAGS:
-    cargo clippy 
+    cargo clippy {{FLAGS}}
 
-sanity:
-    cargo clippy --all --all-targets -- -W clippy::all -W clippy::pedantic -W clippy::nursery
+sanity *FLAGS:
+    cargo clippy --all --all-targets {{FLAGS}} -- -W clippy::all -W clippy::pedantic -W clippy::nursery
 
 release:
     cargo check

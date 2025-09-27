@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::string;
 use std::time::Duration;
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result, anyhow};
 use chrono::Utc;
 use colored::Colorize as _;
 use oauth2::basic::BasicClient;
@@ -135,7 +135,22 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
                     sleep(details.interval() + Duration::from_secs(5)).await;
                     continue;
                 },
-                other => bail!("Device flow error: {} - {:?}", other, json),
+                other => {
+                    let mut summary = String::new();
+                    summary.push_str(other);
+                    if let Some(desc) = json.get("error_description").and_then(Value::as_str) {
+                        summary.push_str(": ");
+                        summary.push_str(desc);
+                    }
+                    if let Some(uri) = json.get("error_uri").and_then(Value::as_str) {
+                        summary.push_str(" (");
+                        summary.push_str(uri);
+                        summary.push(')');
+                    }
+                    return Err(anyhow!("{json:?}"))
+                        .context(summary)
+                        .context("Failed to get access token via device flow");
+                },
             }
         }
 

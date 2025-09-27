@@ -288,7 +288,7 @@ impl FromStr for Vcs {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(match s.to_ascii_lowercase().as_str() {
             "git" => Self::Git,
-            _ => bail!("Unknown VCS found: {}", s),
+            _ => bail!("Unknown VCS found: {s}"),
         })
     }
 }
@@ -315,7 +315,7 @@ impl FromStr for Scheme {
         Ok(match s.to_ascii_lowercase().as_str() {
             "https" => Self::Https,
             "ssh" => Self::Ssh,
-            _ => bail!("Unknown URL scheme found: {}", s),
+            _ => bail!("Unknown URL scheme found: {s}"),
         })
     }
 }
@@ -387,7 +387,7 @@ impl Url {
     pub fn from_url(url: &url::Url) -> Result<Self> {
         let mut segments = url
             .path_segments()
-            .ok_or_else(|| anyhow!("Could not parse path segments from the URL: {}", url))?;
+            .ok_or_else(|| anyhow!("Could not parse path segments from the URL: {url}"))?;
 
         let scheme = Scheme::from_str(url.scheme())?;
 
@@ -401,16 +401,16 @@ impl Url {
             },
             host: Host::from_str(
                 url.host_str()
-                    .ok_or_else(|| anyhow!("Could not find hostname from the URL: {}", url))?,
+                    .ok_or_else(|| anyhow!("Could not find hostname from the URL: {url}"))?,
             )?,
             owner: segments
                 .next()
-                .ok_or_else(|| anyhow!("Could not find owner from the URL: {}", url))?
+                .ok_or_else(|| anyhow!("Could not find owner from the URL: {url}"))?
                 .to_string(),
             repo: Self::remove_extensions(
-                segments.next().ok_or_else(|| {
-                    anyhow!("Could not find repository name from the URL: {}", url)
-                })?,
+                segments
+                    .next()
+                    .ok_or_else(|| anyhow!("Could not find repository name from the URL: {url}"))?,
             ),
             raw: match scheme {
                 // HTTPS URLs can be used directly on cloning, so we prefer it than inferred one.
@@ -438,7 +438,7 @@ impl Url {
     fn from_pattern(s: &str, p: &Patterns, default_owner: Option<&str>) -> Result<Self> {
         p.matches(s)
             .and_then(|m| Self::from_match(m, default_owner))
-            .ok_or_else(|| anyhow!("The input did not match any pattern: {}", s))
+            .ok_or_else(|| anyhow!("The input did not match any pattern: {s}"))
     }
 
     fn remove_extensions(s: &str) -> String {

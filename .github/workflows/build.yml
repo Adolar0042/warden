@@ -78,6 +78,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
+      - run: rustup component add clippy
       - run: cargo clippy --workspace --all-targets --features vendored -- -D warnings
       - run: cargo doc --no-deps --workspace --document-private-items --features vendored
         env:

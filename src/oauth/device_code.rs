@@ -10,6 +10,9 @@ use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, DeviceAuthorizationResponse, DeviceAuthorizationUrl,
     ExtraDeviceAuthorizationFields, RequestTokenError, Scope, TokenResponse as _, TokenUrl,
 };
+use qr2term::matrix::Matrix;
+use qr2term::render::Renderer;
+use qrcode::{Color, EcLevel, QrCode};
 use reqwest::{ClientBuilder, redirect};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -56,7 +59,6 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
         .build()
         .expect("Client should build");
 
-    // Build device authorization request, adding scopes only if present
     let mut device_auth_req = device_client.exchange_device_code();
     if let Some(scopes) = &provider.scopes
         && !scopes.is_empty()
@@ -70,13 +72,42 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
         .await
         .context("Failed to request device authorization codes")?;
 
-    let _ = open::that(details.verification_uri().to_string());
+    if let Some(uri_complete) = details.verification_uri_complete() {
+        let _ = open::that(uri_complete.secret());
+        let mut qr_code: Option<String> = None;
 
-    eprintln!(
-        "Beep Boop! Open this URL in your browser\n{}\nand enter the code {}",
-        details.verification_uri().bold(),
-        details.user_code().secret().bold()
-    );
+        if let Ok(qr) = QrCode::with_error_correction_level(uri_complete.secret(), EcLevel::L) {
+            let mut matrix = Matrix::new(qr.to_colors());
+            matrix.surround(2, Color::Light);
+            let mut buf = Vec::new();
+            if matches!(Renderer::default().render(&matrix, &mut buf), Ok(()))
+                && let Ok(s) = String::from_utf8(buf)
+            {
+                qr_code = Some(s);
+            }
+        }
+
+        eprintln!(
+            "Beep Boop! Open this URL in your browser{}",
+            if qr_code.is_some() {
+                " or scan the QR code below"
+            } else {
+                ""
+            }
+        );
+        eprintln!("{}", uri_complete.secret().bold());
+        if let Some(code) = qr_code {
+            eprintln!("{code}");
+        }
+    } else {
+        let _ = open::that(details.verification_uri().to_string());
+
+        eprintln!(
+            "Beep Boop! Open this URL in your browser\n{}\nand enter the code {}",
+            details.verification_uri().bold(),
+            details.user_code().secret().bold()
+        );
+    }
 
     loop {
         let token = device_client
@@ -101,7 +132,7 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
                 if String::from_utf8(serde_error)?.contains("authorization_pending") {
                     // we got a github!
                     // break and enter the weird loop for non-oauth2 compliant servers
-                    info!("Git server is not following the oauth2 spec");
+                    info!("Provider is not following the oauth2 spec");
                     break;
                 }
             },

@@ -7,17 +7,16 @@ use chrono::{DateTime, Utc};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::config::ProviderConfig;
 use crate::oauth::refresh_access_token;
 
 #[expect(clippy::struct_field_names, reason = "name is intended")]
-#[derive(Serialize, Deserialize, Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Token {
     access_token: String,
     refresh_token: Option<String>,
-    #[zeroize(skip)]
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -33,6 +32,21 @@ impl Display for Token {
         } else {
             write!(f, "{}", "*".repeat(self.access_token.len()))
         }
+    }
+}
+
+impl Zeroize for Token {
+    fn zeroize(&mut self) {
+        self.access_token.zeroize();
+        if let Some(rt) = &mut self.refresh_token {
+            rt.zeroize();
+        }
+    }
+}
+
+impl Drop for Token {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 
@@ -61,7 +75,7 @@ impl Token {
     /// with the new token.
     #[instrument(skip(self, provider))]
     pub async fn access_token_checked(&mut self, provider: &ProviderConfig) -> Result<&str> {
-        if self.expires_at.is_some_and(|dt| dt < Utc::now()) {
+        if self.is_expired() {
             info!("Access token expired, refreshing...");
             let new_token = refresh_access_token(provider, self)
                 .await
@@ -73,6 +87,10 @@ impl Token {
 
     pub fn refresh_token(&self) -> Option<&str> {
         self.refresh_token.as_deref()
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.expires_at.is_some_and(|expiry| expiry < Utc::now())
     }
 
     pub fn pack(&self) -> String {

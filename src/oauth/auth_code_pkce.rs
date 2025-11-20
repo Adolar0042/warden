@@ -121,7 +121,7 @@ async fn wait_for_code(
     redirect_addr: &str,
     authorize_url: &oauth2::url::Url,
 ) -> Result<(AuthorizationCode, CsrfToken)> {
-    match open::that(authorize_url.to_string()) {
+    match open::that_detached(authorize_url.to_string()) {
         Ok(()) => {
             eprintln!("Beep Boop! Check your browser for authorization");
         },

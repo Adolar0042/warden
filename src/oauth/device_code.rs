@@ -73,7 +73,7 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
         .context("Failed to request device authorization codes")?;
 
     if let Some(uri_complete) = details.verification_uri_complete() {
-        let _ = open::that(uri_complete.secret());
+        let _ = open::that_detached(uri_complete.secret());
         let mut qr_code: Option<String> = None;
 
         if let Ok(qr) = QrCode::with_error_correction_level(uri_complete.secret(), EcLevel::L) {
@@ -100,7 +100,7 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
             eprintln!("{code}");
         }
     } else {
-        let _ = open::that(details.verification_uri().to_string());
+        let _ = open::that_detached(details.verification_uri().to_string());
 
         eprintln!(
             "Beep Boop! Open this URL in your browser\n{}\nand enter the code {}",

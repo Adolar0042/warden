@@ -42,7 +42,7 @@ pub async fn print_token_checked(
     let _ = token
         .access_token_checked(provider)
         .await
-        .context("Failed to get or refresh access token")?;
+        .context("Failed to get access token")?;
     emit_token_lines(username, token);
     Ok(())
 }

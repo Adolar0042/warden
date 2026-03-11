@@ -128,13 +128,13 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
                 );
                 return Ok(token);
             },
-            Err(RequestTokenError::Parse(_, serde_error)) => {
-                if String::from_utf8(serde_error)?.contains("authorization_pending") {
-                    // we got a github!
-                    // break and enter the weird loop for non-oauth2 compliant servers
-                    info!("Provider is not following the oauth2 spec");
-                    break;
-                }
+            Err(RequestTokenError::Parse(_, serde_error))
+                if String::from_utf8_lossy(&serde_error).contains("authorization_pending") =>
+            {
+                // we got a github!
+                // break and enter the weird loop for non-oauth2 compliant servers
+                info!("Provider is not following the oauth2 spec");
+                break;
             },
             _ => {},
         }

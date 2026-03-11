@@ -11,6 +11,9 @@ pub struct Cli {
     /// Use OAuth device flow or fail
     #[clap(short, long, global = true)]
     pub device: bool,
+    /// Logging verbosity
+    #[command(flatten)]
+    pub verbosity: clap_verbosity_flag::Verbosity,
     #[command(subcommand)]
     pub command: Command,
 }

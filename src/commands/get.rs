@@ -88,7 +88,7 @@ pub async fn handle_get(force_device: bool) -> Result<()> {
             .context("Failed to retrieve token from keyring")?;
         print_token_checked(&mut token, credential, provider)
             .await
-            .context("Failed to print token")?;
+            .context("Failed to output token")?;
         return Ok(());
     }
     // if no username is provided, check if there is an active user for the host
@@ -103,7 +103,7 @@ pub async fn handle_get(force_device: bool) -> Result<()> {
         login(force_device).await.context("Failed to login")?;
         hosts_config = load_cfg!(Hosts)?;
         active_credential = hosts_config.get_active_credential(&req.host);
-        if active_credential.is_none() || active_credential.is_some_and(str::is_empty) {
+        if active_credential.is_none_or(str::is_empty) {
             error!("No active credential found for host {}", req.host);
             bail!(
                 "No active credential found for host {}. Please login first.",
@@ -121,7 +121,7 @@ pub async fn handle_get(force_device: bool) -> Result<()> {
         );
         print_token_checked(&mut token, username, provider)
             .await
-            .context("Failed to print token")?;
+            .context("Failed to output token")?;
         return Ok(());
     }
 

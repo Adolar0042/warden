@@ -95,12 +95,12 @@ impl Token {
 
     pub fn pack(&self) -> String {
         serde_json::to_string(self)
-            .context("Failed to serialize token for storage in keyring")
+            .context("Failed to serialize token")
             .unwrap()
     }
 
     pub fn from_string(s: &str) -> Result<Self> {
-        serde_json::from_str::<Self>(s).context("Failed to parse token")
+        serde_json::from_str::<Self>(s).context("Failed to deserialize token")
     }
 }
 

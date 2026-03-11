@@ -1,6 +1,6 @@
 pub mod auth_code_pkce;
 pub mod device_code;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use chrono::Utc;
 use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RefreshToken, TokenResponse as _, TokenUrl};
@@ -68,7 +68,7 @@ pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> R
             Ok(token) => token,
             Err(err) => {
                 error!("Failed to exchange code: {}", err);
-                return Err(err.into());
+                return Err(anyhow!(err)).context("Failed to exchange refresh token");
             },
         };
         let expires_at = token.expires_in().map(|d| Utc::now() + d);
@@ -77,6 +77,7 @@ pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> R
             token.refresh_token().map(|rt| rt.secret().clone()),
             expires_at,
         );
+
         Ok(token)
     } else {
         bail!("No refresh token available")

@@ -78,7 +78,7 @@ impl Configs {
             let last = segments[segments.len() - 1];
             match current.get(last) {
                 Some(Value::Table(_)) => {
-                    bail!("Conflicting key '{full_key}': cannot overwrite a table with a value",);
+                    bail!("Conflicting key '{full_key}': cannot overwrite a table with a value");
                 },
                 _ => {
                     current.insert(last.to_string(), Value::String(value.clone()));
@@ -112,7 +112,7 @@ impl Configs {
                 Ok(())
             },
             Value::Array(_) => {
-                bail!("Arrays are not supported in profile configs at key '{current_key}'",)
+                bail!("Arrays are not supported in profile configs at key '{current_key}'")
             },
             // All scalars: coerce to string (git config values are strings)
             other @ (Value::String(_)

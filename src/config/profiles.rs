@@ -37,7 +37,7 @@ impl LoadableConfig for ProfileConfig {
         let builder = Config::builder().add_source(File::from(path).required(true));
         let settings = builder
             .build()
-            .context("Failed to build profile configuration")?;
+            .context("Failed to build profile configurations")?;
         let cfg: Self = settings
             .try_deserialize()
             .context("Malformed profile configuration file")?;

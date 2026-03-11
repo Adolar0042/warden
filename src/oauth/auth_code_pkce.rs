@@ -7,8 +7,8 @@ use chrono::Utc;
 use colored::Colorize as _;
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, Scope,
-    TokenResponse as _, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
+    Scope, TokenResponse as _, TokenUrl,
 };
 use reqwest::{ClientBuilder, Url, redirect};
 use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt, BufReader};
@@ -31,7 +31,7 @@ pub async fn exchange_auth_code_pkce(
     let mut oauth_client = BasicClient::new(ClientId::new(provider.client_id.clone()))
         .set_auth_uri(AuthUrl::new(provider.auth_url.clone())?)
         .set_token_uri(TokenUrl::new(provider.token_url.clone())?)
-        .set_redirect_uri(oauth2::RedirectUrl::new(redirect_addr.clone())?);
+        .set_redirect_uri(RedirectUrl::new(redirect_addr.clone())?);
 
     if let Some(secret) = &provider.client_secret {
         oauth_client = oauth_client.set_client_secret(ClientSecret::new(secret.clone()));

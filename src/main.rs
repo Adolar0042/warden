@@ -3,7 +3,6 @@
 use anyhow::Result;
 use clap::Parser as _;
 use tracing::instrument;
-use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt as _;
 use tracing_subscriber::util::SubscriberInitExt as _;
 use tracing_subscriber::{EnvFilter, fmt, registry};
@@ -22,16 +21,17 @@ mod utils;
 #[instrument]
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
     registry()
         .with(
             EnvFilter::builder()
-                .with_default_directive(LevelFilter::WARN.into())
+                .with_default_directive(cli.verbosity.tracing_level_filter().into())
                 .from_env_lossy(),
         )
         .with(fmt::layer().with_writer(std::io::stderr))
         .init();
 
-    let Cli { command, device } = Cli::parse();
-    command.run(device).await?;
+    cli.command.run(cli.device).await?;
     Ok(())
 }

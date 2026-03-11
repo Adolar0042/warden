@@ -122,7 +122,7 @@ impl Hosts {
     /// Iterate over hosts sorted by hostname
     pub fn iter_sorted(&self) -> impl Iterator<Item = (&str, &HostConfig)> {
         let mut items: Vec<_> = self.inner.iter().collect();
-        items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        items.sort_by_key(|(a, _)| *a);
         items.into_iter().map(|(k, v)| (k.as_str(), v))
     }
 

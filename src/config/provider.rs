@@ -105,7 +105,7 @@ impl LoadableConfig for OAuthConfig {
 
         let settings = builder
             .build()
-            .context("Failed to build configuration for OAuth providers")?;
+            .context("Failed to build OAuth provider configurations")?;
 
         let cfg: Self = settings
             .try_deserialize()

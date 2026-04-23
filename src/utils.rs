@@ -1,15 +1,16 @@
 use std::collections::HashMap;
+use std::env::consts::FAMILY;
 use std::fmt::Display;
 use std::io::{self, BufRead as _, stderr};
 use std::path::PathBuf;
 use std::process::exit;
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, anyhow};
 use chrono::{DateTime, Utc};
 use crossterm::cursor::Show;
 use crossterm::execute;
 use dialoguer::FuzzySelect;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 use crate::theme::InputTheme;
 
@@ -21,12 +22,19 @@ pub fn select_index<S: Into<String>, T: AsRef<str> + Display>(
         let _ = execute!(stderr(), Show);
         exit(130);
     });
-    FuzzySelect::with_theme(&InputTheme::default())
+    let sel = FuzzySelect::with_theme(&InputTheme::default())
         .items(items)
         .with_prompt(prompt)
         .default(0)
-        .interact()
-        .context("Failed to select")
+        .interact_opt()
+        .context("Failed to select")?;
+    #[expect(clippy::option_if_let_else, reason = "match is more readable here")]
+    match sel {
+        Some(index) => Ok(index),
+        None => {
+            exit(130);
+        },
+    }
 }
 
 /// Represents the fields Git sends to a credential helper.
@@ -71,6 +79,25 @@ pub fn parse_credential_request() -> Result<CredentialRequest> {
             .collect::<HashMap<_, _>>()
     );
 
+    let password_expiry_utc = map
+        .get("password_expiry_utc")
+        .map(|s| {
+            let ts = s
+                .trim()
+                .parse::<u64>()
+                .context("Invalid 'password_expiry_utc'")?;
+
+            DateTime::from_timestamp(
+                ts.try_into().context("password_expiry_utc out of range")?,
+                0,
+            )
+            .ok_or_else(|| {
+                error!("Invalid 'password_expiry_utc' timestamp: {ts}");
+                anyhow!("Invalid 'password_expiry_utc' timestamp: {ts}")
+            })
+        })
+        .transpose()?;
+
     Ok(CredentialRequest {
         _protocol: map
             .get("protocol")
@@ -80,27 +107,23 @@ pub fn parse_credential_request() -> Result<CredentialRequest> {
         _path: map.get("path").cloned(),
         username: map.get("username").cloned(),
         password: map.get("password").cloned(),
-        password_expiry_utc: map
-            .get("password_expiry_utc")
-            .and_then(|s| s.trim().parse::<u64>().ok())
-            .and_then(|secs| i64::try_from(secs).ok())
-            .and_then(|ts| DateTime::from_timestamp(ts, 0)),
+        password_expiry_utc,
         oauth_refresh_token: map.get("oauth_refresh_token").cloned(),
     })
 }
 
-#[cfg(not(target_os = "linux"))]
 #[instrument]
 pub fn config_dir() -> Result<PathBuf> {
-    dirs::home_dir()
-        .context("Failed to get home directory")
-        .map(|dir| dir.join(".config").join(env!("CARGO_PKG_NAME")))
-}
-
-#[cfg(target_os = "linux")]
-#[instrument]
-pub fn config_dir() -> Result<PathBuf> {
-    dirs::config_dir()
-        .context("Failed to get config directory")
-        .map(|dir| dir.join(env!("CARGO_PKG_NAME")))
+    match FAMILY {
+        "unix" => {
+            dirs::config_dir()
+                .context("Failed to get config directory")
+                .map(|dir| dir.join(env!("CARGO_PKG_NAME")))
+        },
+        _ => {
+            dirs::home_dir()
+                .context("Failed to get home directory")
+                .map(|dir| dir.join(".config").join(env!("CARGO_PKG_NAME")))
+        },
+    }
 }

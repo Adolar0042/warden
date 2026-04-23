@@ -140,8 +140,28 @@ async fn wait_for_code(
 
             let mut request_line = String::new();
             reader.read_line(&mut request_line).await?;
+            // empty line, continue reading until we get a non-empty line
+            // this can happen when the browser (Firefox) first asks the user if they want
+            // to allow the connection to a local server from the page they're on
+            if request_line.trim().is_empty() {
+                continue;
+            }
 
-            let redirect_url = request_line.split_whitespace().nth(1).unwrap();
+            let mut parts = request_line.split_whitespace();
+            let _method = parts.next();
+            let Some(redirect_url) = parts.next() else {
+                // malformed request, but we still respond so the user isn't left hanging
+                // not sure how this would happen under normal circumstances,
+                // but better safe than sorry
+                write_response_with_status(
+                    &mut stream,
+                    "400 Bad Request",
+                    "Malformed request. You can close this window now. :(",
+                )
+                .await?;
+                continue;
+            };
+
             let url = Url::parse(&format!("{redirect_addr}{redirect_url}"))?;
 
             let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
@@ -213,9 +233,18 @@ async fn wait_for_code(
 
 #[instrument(skip(stream))]
 async fn write_response(stream: &mut (impl AsyncWriteExt + Unpin), body: &str) -> Result<()> {
+    write_response_with_status(stream, "200 OK", body).await
+}
+
+async fn write_response_with_status(
+    stream: &mut (impl AsyncWriteExt + Unpin),
+    status: &str,
+    body: &str,
+) -> Result<()> {
     let raw = format!(
-        "HTTP/1.1 200 OK\r\ncontent-length: {len}\r\ncontent-type: text/plain; \
+        "HTTP/1.1 {status}\r\ncontent-length: {len}\r\ncontent-type: text/plain; \
          charset=utf-8\r\n\r\n{body}",
+        status = status,
         len = body.len(),
         body = body
     );
@@ -223,5 +252,8 @@ async fn write_response(stream: &mut (impl AsyncWriteExt + Unpin), body: &str) -
         .write_all(raw.as_bytes())
         .await
         .context("Failed to write HTTP response")?;
-    Ok(())
+    stream
+        .flush()
+        .await
+        .context("Failed to flush HTTP response")
 }

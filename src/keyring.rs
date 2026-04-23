@@ -1,10 +1,11 @@
 use core::fmt::Display;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::env::consts::OS;
 
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
-use keyring::Entry;
+use keyring_core::Entry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 use zeroize::Zeroize;
@@ -22,15 +23,15 @@ pub struct Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.access_token.len() > 4 {
+        if self.access_token.len() <= 4 {
+            write!(f, "{}", "*".repeat(self.access_token.len()))
+        } else {
             write!(
                 f,
                 "{}{}",
                 &self.access_token[0..4],
                 "*".repeat(min(3, self.access_token.len() - 4))
             )
-        } else {
-            write!(f, "{}", "*".repeat(self.access_token.len()))
         }
     }
 }
@@ -104,40 +105,106 @@ impl Token {
     }
 }
 
-fn get_entry(credential: &str, host: &str) -> Result<Entry> {
-    #[cfg(not(target_os = "windows"))]
-    let entry = Entry::new(
-        format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
-        credential,
-    )?;
+fn set_keyring_store() -> Result<()> {
+    if keyring_core::get_default_store().is_some() {
+        return Ok(());
+    }
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    keyring_core::set_default_store(
+        zbus_secret_service_keyring_store::Store::new()
+            .context("Failed to create keyring store")?,
+    );
+
     #[cfg(target_os = "windows")]
-    let entry = Entry::new_with_target(
-        format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
-        format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
-        credential,
-    )?;
+    keyring_core::set_default_store(
+        windows_native_keyring_store::Store::new().context("Failed to create keyring store")?,
+    );
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    keyring_core::set_default_store(
+        apple_native_keyring_store::keychain::Store::new()
+            .context("Failed to create keyring store")?,
+    );
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly",
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "ios"
+    )))]
+    bail!("No keyring backend is implemented for platform '{OS}'.");
+
+    Ok(())
+}
+
+fn get_entry(credential: &str, host: &str) -> Result<Entry> {
+    set_keyring_store().context("Failed to set keyring store")?;
+    let entry = match OS {
+        "linux" | "freebsd" | "openbsd" | "netbsd" | "dragonfly" => {
+            Entry::new_with_modifiers(
+                format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
+                credential,
+                &HashMap::from([(
+                    "label",
+                    format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
+                )]),
+            )?
+        },
+        "windows" => {
+            Entry::new_with_modifiers(
+                format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
+                credential,
+                &HashMap::from([(
+                    "target",
+                    format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
+                )]),
+            )?
+        },
+        _ => {
+            Entry::new(
+                format!("{}:{host}", env!("CARGO_PKG_NAME")).as_str(),
+                credential,
+            )?
+        },
+    };
     Ok(entry)
 }
 
 pub fn store_keyring_token(credential: &str, host: &str, token: &Token) -> Result<()> {
     let entry = get_entry(credential, host)?;
-    entry.set_password(&token.pack())?;
-    #[cfg(target_os = "linux")]
-    entry.update_attributes(&HashMap::from([
-        (
-            "label",
-            format!("{}:{credential}@{host}", env!("CARGO_PKG_NAME")).as_str(),
-        ),
-        (
-            "application",
-            format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
-        ),
-    ]))?;
-    #[cfg(target_os = "windows")]
-    entry.update_attributes(&HashMap::from([(
-        "comment",
-        format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
-    )]))?;
+    entry
+        .set_password(&token.pack())
+        .context("Failed to set secret in keyring entry")?;
+
+    match OS {
+        "linux" | "freebsd" | "openbsd" | "netbsd" | "dragonfly" => {
+            // Remove label entry, it is only set in the first place to change the name
+            // of the entry in the keyring but unfortunately also shows up in the
+            // attributes
+            entry.update_attributes(&HashMap::from([(
+                "application",
+                format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
+            )]))?;
+        },
+        "windows" => {
+            entry.update_attributes(&HashMap::from([(
+                "comment",
+                format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),
+            )]))?;
+        },
+        _ => {},
+    }
+
     Ok(())
 }
 

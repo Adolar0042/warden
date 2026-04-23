@@ -94,9 +94,9 @@ async fn refresh_one(
         let use_refresh = Confirm::with_theme(&InputTheme::default())
             .with_prompt("A refresh token is available. Use it?")
             .default(true)
-            .interact()
+            .interact_opt()
             .context("Failed to confirm refresh token usage")?;
-        if use_refresh {
+        if use_refresh.is_some_and(|b| b) {
             let token = refresh_access_token(provider, &token)
                 .await
                 .context("Failed to refresh access token")?;

@@ -62,9 +62,9 @@ pub async fn login(force_device: bool) -> Result<()> {
         let confirm = Confirm::with_theme(&InputTheme::default())
             .with_prompt("Do you want to overwrite it?")
             .default(false)
-            .interact()
+            .interact_opt()
             .context("Failed to confirm overwrite")?;
-        if !confirm {
+        if confirm.is_none_or(|b| !b) {
             exit(1);
         }
     }

@@ -1,0 +1,45 @@
+name: Documentation
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  doc:
+    name: Docs
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh pkg-config
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly rust-docs
+      - name: Build docs (deny warnings)
+        shell: bash
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly doc --locked --no-deps --workspace --document-private-items --features vendored

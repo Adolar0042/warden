@@ -2,7 +2,7 @@
 
 Warden does two things for your Git workflow: Git profile management and OAuth-based Git credentials.
 
-Best-effort mirrors of this repository are maintained at [codeberg.org](https://codeberg.org/adolar0042/warden) and [git.gay](https://git.gay/adolar0042/warden). No guarantees are provided about their freshness or availability.
+Best-effort mirrors of this repository are maintained at [github.com](https://github.com/adolar0042/warden) and [git.gay](https://git.gay/adolar0042/warden). No guarantees are provided about their freshness or availability.
 
 ## Table of Contents
 
@@ -18,9 +18,9 @@ Best-effort mirrors of this repository are maintained at [codeberg.org](https://
 Compile and install via Cargo:
 
 ```bash
-cargo install --git https://github.com/adolar0042/warden
+cargo install --git https://codeberg.org/adolar0042/warden
 # with vendored libs
-cargo install --git https://github.com/adolar0042/warden --features vendored
+cargo install --git https://codeberg.org/adolar0042/warden --features vendored
 ```
 
 **Note that git credential helpers must be installed in a directory in your PATH with the name `git-credentian-<name>`. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**

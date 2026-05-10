@@ -1,0 +1,66 @@
+name: Build
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: codeberg-medium
+    env:
+      BIN_NAME: warden
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh jq pkg-config perl
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly
+      - name: Get Version
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          version=$(cargo +nightly metadata --no-deps --format-version 1 | jq -r --arg bin "$BIN_NAME" '
+            .packages[]
+            | select(any(.targets[]; .name==$bin and (.kind | index("bin"))))
+            | .version' | head -n1)
+          echo "CRATE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Detected version: $version"
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly build --locked --release --bin "$BIN_NAME" --features vendored
+          ls -l "target/release/${BIN_NAME}"* || true
+
+      - name: Upload release binary
+        uses: https://data.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-linux-v${{ env.CRATE_VERSION }}
+          path: target/release/${{ env.BIN_NAME }}
+          if-no-files-found: error
+          retention-days: 7

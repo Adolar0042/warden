@@ -1,0 +1,99 @@
+name: Lint
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    name: Format
+    runs-on: codeberg-small
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh
+
+      - name: Install Rust (nightly + rustfmt)
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly rustfmt
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly fmt --all -- --check
+
+  check:
+    name: Check
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh jq pkg-config perl
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh stable
+
+      - name: Cargo check
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo check --locked --features vendored
+
+  clippy:
+    name: Clippy
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh pkg-config
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly clippy
+      - name: Run clippy (deny warnings)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly clippy --locked --workspace --all-targets --features vendored -- -D warnings

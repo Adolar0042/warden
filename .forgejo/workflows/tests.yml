@@ -1,0 +1,43 @@
+name: Tests
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Tests
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh jq pkg-config perl
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly test --locked --workspace --features vendored

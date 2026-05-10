@@ -47,39 +47,39 @@ pub async fn get_access_token(
 /// Refreshes the access token using the refresh token.
 #[instrument(skip(provider, token))]
 pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> Result<Token> {
-    if let Some(refresh_token) = &token.refresh_token() {
-        let mut client = BasicClient::new(ClientId::new(provider.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(provider.auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(provider.token_url.clone())?);
-        if let Some(secret) = &provider.client_secret {
-            client = client.set_client_secret(ClientSecret::new(secret.clone()));
-        }
+    let refresh_token = token
+        .refresh_token()
+        .ok_or_else(|| anyhow!("No refresh token available"))?;
 
-        let http_client = ClientBuilder::new()
-            .redirect(redirect::Policy::none())
-            .build()
-            .expect("Client should build");
-
-        let token_res = client
-            .exchange_refresh_token(&RefreshToken::new((*refresh_token).to_string()))
-            .request_async(&http_client)
-            .await;
-        let token = match token_res {
-            Ok(token) => token,
-            Err(err) => {
-                error!("Failed to exchange code: {}", err);
-                return Err(anyhow!(err)).context("Failed to exchange refresh token");
-            },
-        };
-        let expires_at = token.expires_in().map(|d| Utc::now() + d);
-        let token = Token::new(
-            token.access_token().secret().clone(),
-            token.refresh_token().map(|rt| rt.secret().clone()),
-            expires_at,
-        );
-
-        Ok(token)
-    } else {
-        bail!("No refresh token available")
+    let mut client = BasicClient::new(ClientId::new(provider.client_id.clone()))
+        .set_auth_uri(AuthUrl::new(provider.auth_url.clone())?)
+        .set_token_uri(TokenUrl::new(provider.token_url.clone())?);
+    if let Some(secret) = &provider.client_secret {
+        client = client.set_client_secret(ClientSecret::new(secret.clone()));
     }
+
+    let http_client = ClientBuilder::new()
+        .redirect(redirect::Policy::none())
+        .build()
+        .expect("Client should build");
+
+    let token_res = client
+        .exchange_refresh_token(&RefreshToken::new((*refresh_token).to_string()))
+        .request_async(&http_client)
+        .await;
+    let token = match token_res {
+        Ok(token) => token,
+        Err(err) => {
+            error!("Failed to exchange code: {}", err);
+            return Err(anyhow!(err)).context("Failed to exchange refresh token");
+        },
+    };
+    let expires_at = token.expires_in().map(|d| Utc::now() + d);
+    let token = Token::new(
+        token.access_token().secret().clone(),
+        token.refresh_token().map(|rt| rt.secret().clone()),
+        expires_at,
+    );
+
+    Ok(token)
 }

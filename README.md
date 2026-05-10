@@ -28,6 +28,8 @@ To ensure it works as expected, additionally link it to a standard location (in 
 
 ```bash
 sudo ln -s ~/.cargo/bin/warden /usr/bin/git-credential-warden
+# link for convenience, so you can still use 'warden'
+sudo ln -s ~/.cargo/bin/warden /usr/bin/warden
 ```
 
 This linking is important! Mainly out of convenience, so you can use `warden` for all commands and git still has its preferred `git-credential-warden` helper available.

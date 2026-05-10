@@ -17,8 +17,8 @@ use crate::profile::rule::ProfileRef;
 pub fn show(profile_ref: &ProfileRef) -> Result<()> {
     let profile_config = load_cfg!(ProfileConfig)?;
     let Some(profile) = profile_config.profiles.get(&profile_ref.name) else {
-        styled_error(format!("Unknown profile: {}", &profile_ref.name));
-        bail!("Unknown profile: {}", &profile_ref.name);
+        styled_error(format!("Unknown profile: {}", profile_ref.name));
+        bail!("Unknown profile: {}", profile_ref.name);
     };
 
     for (k, v) in &profile.configs {

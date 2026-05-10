@@ -95,7 +95,7 @@ impl Theme for InputTheme {
             "{}{}{}",
             style(prompt).bold().for_stderr(),
             self.selected_suffix,
-            &self.result_style.apply_to(sel)
+            self.result_style.apply_to(sel)
         )
     }
 
@@ -199,8 +199,8 @@ impl Theme for InputTheme {
             f,
             "{}{}{}",
             style(prompt).bold().for_stderr(),
-            &self.selected_suffix,
-            &self.result_style.apply_to(chosen)
+            self.selected_suffix,
+            self.result_style.apply_to(chosen)
         )
     }
 

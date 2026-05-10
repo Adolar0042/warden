@@ -97,13 +97,10 @@ impl Source for GitConfigSource {
                 };
                 let full_key = full_key.to_lowercase();
 
-                if !full_key.starts_with("credential.") {
-                    continue;
-                }
                 let Some(rest) = full_key.strip_prefix("credential.") else {
                     continue;
                 };
-                let Some(oauth_pos) = rest.find(".oauth") else {
+                let Some(oauth_pos) = rest.rfind(".oauth") else {
                     continue;
                 };
 

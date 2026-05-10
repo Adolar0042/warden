@@ -33,7 +33,7 @@ pub fn list(short: bool) -> Result<()> {
                     .configs
                     .get("user.name")
                     .map_or(INHERIT, |name| name.as_str()),
-                &format!(
+                format!(
                     "<{}>",
                     profile
                         .configs

@@ -461,7 +461,7 @@ impl Display for Url {
         let authority = self
             .user
             .as_ref()
-            .map_or_else(|| self.host.to_string(), |u| format!("{u}@{}", &self.host));
+            .map_or_else(|| self.host.to_string(), |u| format!("{u}@{}", self.host));
 
         match self.scheme {
             Scheme::Https => {

@@ -26,7 +26,7 @@ pub fn apply(profile_name: Option<String>) -> Result<()> {
         let profile = profile_config
             .profiles
             .get(&profile_ref.name)
-            .ok_or_else(|| anyhow!("Unknown profile: {}", &profile_ref.name))?;
+            .ok_or_else(|| anyhow!("Unknown profile: {}", profile_ref.name))?;
 
         profile.apply()?;
 
@@ -54,9 +54,9 @@ pub fn apply(profile_name: Option<String>) -> Result<()> {
             None => {
                 styled_error(format!(
                     "No profile found for [{}].",
-                    &url.to_string().bold()
+                    url.to_string().bold()
                 ));
-                bail!("No rule matched for remote {}", &url.to_string());
+                bail!("No rule matched for remote {url}");
             },
             Some(rule) => {
                 let profile = profile_config
@@ -73,7 +73,7 @@ pub fn apply(profile_name: Option<String>) -> Result<()> {
                         .configs
                         .get("user.name")
                         .map_or(INHERIT, |name| name.as_str()),
-                    &format!(
+                    format!(
                         "<{}>",
                         profile
                             .1

@@ -73,7 +73,7 @@ pub async fn exchange_auth_code_pkce(
         Ok(token) => token,
         Err(err) => {
             error!("Failed to exchange code: {}", err);
-            return Err(err.into());
+            return Err(anyhow!(err)).context("Failed to exchange code");
         },
     };
     let expires_at = token.expires_in().map(|d| Utc::now() + d);
@@ -236,6 +236,7 @@ async fn write_response(stream: &mut (impl AsyncWriteExt + Unpin), body: &str) -
     write_response_with_status(stream, "200 OK", body).await
 }
 
+#[instrument(skip(stream))]
 async fn write_response_with_status(
     stream: &mut (impl AsyncWriteExt + Unpin),
     status: &str,

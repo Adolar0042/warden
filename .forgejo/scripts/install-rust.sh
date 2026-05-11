@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/env bash
 set -euxo pipefail
 
 # Usage: install-rust.sh [toolchain] [COMPONENT1] [COMPONENT2] ...

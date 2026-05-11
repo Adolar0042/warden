@@ -1,0 +1,169 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: codeberg-tiny
+    env:
+      BIN_NAME: warden
+    outputs:
+      release_id: ${{ steps.create_release.outputs.release_id }}
+      crate_version: ${{ steps.check_version.outputs.crate_version }}
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh
+
+      - name: Check Version
+        id: check_version
+        shell: bash
+        run: |
+          set -euxo pipefail
+          version=$(grep -m1 '^\s*version\s*=' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "crate_version=$version" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $version"
+          [[ "v$version" == "${{ github.ref_name }}" ]]
+
+      - name: Create release
+        id: create_release
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RELEASE_ID=$(curl -fsSL \
+            -X POST \
+            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases" \
+            -d "{
+              \"tag_name\": \"${{ github.ref_name }}\",
+              \"name\": \"v${{ steps.check_version.outputs.crate_version }}\",
+              \"draft\": true,
+              \"prerelease\": false
+            }" | jq -r '.id')
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          echo "Created release id: $RELEASE_ID"
+
+  build_release_assets:
+    name: Build and Upload (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs: release
+    env:
+      BIN_NAME: warden
+      CRATE_VERSION: ${{ needs.release.outputs.crate_version }}
+      RELEASE_ID: ${{ needs.release.outputs.release_id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: codeberg-medium
+            cargo_target: x86_64-unknown-linux-gnu
+            artifact_ext: tar.gz
+            extra_deps: ""
+          - target: linux-musl-x86_64
+            runner: codeberg-medium
+            cargo_target: x86_64-unknown-linux-musl
+            artifact_ext: tar.gz
+            extra_deps: "musl-tools"
+          - target: windows-x86_64
+            runner: codeberg-medium
+            cargo_target: x86_64-pc-windows-gnu
+            artifact_ext: zip
+            extra_deps: "mingw-w64 zip"
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Cache Rust build artifacts
+        uses: https://data.forgejo.org/actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.cargo_target }}
+
+      - name: Install system dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh jq pkg-config perl ${{ matrix.extra_deps }}
+
+      - name: Install Rust
+        shell: bash
+        run: .forgejo/scripts/install-rust.sh nightly
+
+      - name: Add target
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          rustup +nightly target add ${{ matrix.cargo_target }}
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$HOME/.cargo/env"
+          cargo +nightly build --locked --release --bin "$BIN_NAME" --features vendored --target ${{ matrix.cargo_target }}
+          ls -l "target/${{ matrix.cargo_target }}/release/${BIN_NAME}"* || true
+
+      - name: Package binary (tar.gz)
+        if: matrix.artifact_ext == 'tar.gz'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.tar.gz"
+          tar czf "$ARCHIVE" -C "target/${{ matrix.cargo_target }}/release" "$BIN_NAME"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          cat "${ARCHIVE}.sha256"
+
+      - name: Package binary (zip)
+        if: matrix.artifact_ext == 'zip'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.zip"
+          (cd "target/${{ matrix.cargo_target }}/release" && zip -9 -r "$GITHUB_WORKSPACE/$ARCHIVE" "${BIN_NAME}.exe")
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          cat "${ARCHIVE}.sha256"
+
+      - name: Upload release assets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets"
+          # upload archive
+          curl -fsSL -X POST -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" "$API" -F "attachment=@${ARCHIVE};type=application/octet-stream"
+          # upload sha256
+          curl -fsSL -X POST -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" "$API" -F "attachment=@${ARCHIVE}.sha256;type=text/plain"
+
+  publish_release:
+    name: Publish Release
+    runs-on: codeberg-tiny
+    needs: [release, build_release_assets]
+    steps:
+      - name: Publish release (unmark draft)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases/${{ needs.release.outputs.release_id }}"
+          curl -fsSL -X PATCH -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" -H "Content-Type: application/json" "$API" -d '{"draft": false}'
+          echo "Published release id: ${{ needs.release.outputs.release_id }}"

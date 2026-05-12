@@ -46,7 +46,7 @@ jobs:
             .packages[]
             | select(any(.targets[]; .name==$bin and (.kind | index("bin"))))
             | .version' | head -n1)
-          echo "CRATE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CRATE_VERSION=$version" >> "$FORGEJO_ENV"
           echo "Detected version: $version"
 
       - name: Build release binary

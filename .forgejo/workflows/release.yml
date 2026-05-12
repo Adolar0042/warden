@@ -21,7 +21,7 @@ jobs:
       - uses: https://data.forgejo.org/actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
+          ref: ${{ forgejo.ref }}
 
       - name: Install system dependencies
         shell: bash
@@ -33,9 +33,9 @@ jobs:
         run: |
           set -euxo pipefail
           version=$(grep -m1 '^\s*version\s*=' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "crate_version=$version" >> "$GITHUB_OUTPUT"
+          echo "crate_version=$version" >> "$FORGEJO_OUTPUT"
           echo "Detected version: $version"
-          [[ "v$version" == "${{ github.ref_name }}" ]]
+          [[ "v$version" == "${{ forgejo.ref_name }}" ]]
 
       - name: Create release
         id: create_release
@@ -46,14 +46,14 @@ jobs:
             -X POST \
             -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
             -H "Content-Type: application/json" \
-            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases" \
+            "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases" \
             -d "{
-              \"tag_name\": \"${{ github.ref_name }}\",
+              \"tag_name\": \"${{ forgejo.ref_name }}\",
               \"name\": \"v${{ steps.check_version.outputs.crate_version }}\",
               \"draft\": true,
               \"prerelease\": false
             }" | jq -r '.id')
-          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          echo "release_id=$RELEASE_ID" >> "$FORGEJO_OUTPUT"
           echo "Created release id: $RELEASE_ID"
 
   build_release_assets:
@@ -87,7 +87,7 @@ jobs:
       - uses: https://data.forgejo.org/actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
+          ref: ${{ forgejo.ref }}
 
       - name: Cache Rust build artifacts
         uses: https://data.forgejo.org/actions/cache@v5
@@ -130,7 +130,7 @@ jobs:
           set -euxo pipefail
           ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.tar.gz"
           tar czf "$ARCHIVE" -C "target/${{ matrix.cargo_target }}/release" "$BIN_NAME"
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$ARCHIVE" >> "$FORGEJO_ENV"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
 
@@ -140,8 +140,8 @@ jobs:
         run: |
           set -euxo pipefail
           ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.zip"
-          (cd "target/${{ matrix.cargo_target }}/release" && zip -9 -r "$GITHUB_WORKSPACE/$ARCHIVE" "${BIN_NAME}.exe")
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          (cd "target/${{ matrix.cargo_target }}/release" && zip -9 -r "$FORGEJO_WORKSPACE/$ARCHIVE" "${BIN_NAME}.exe")
+          echo "ARCHIVE=$ARCHIVE" >> "$FORGEJO_ENV"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
 
@@ -149,7 +149,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets"
+          API="${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/${RELEASE_ID}/assets"
           # upload archive
           curl -fsSL -X POST -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" "$API" -F "attachment=@${ARCHIVE};type=application/octet-stream"
           # upload sha256
@@ -164,6 +164,6 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases/${{ needs.release.outputs.release_id }}"
+          API="${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/${{ needs.release.outputs.release_id }}"
           curl -fsSL -X PATCH -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" -H "Content-Type: application/json" "$API" -d '{"draft": false}'
           echo "Published release id: ${{ needs.release.outputs.release_id }}"

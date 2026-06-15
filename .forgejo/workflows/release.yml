@@ -5,6 +5,13 @@ on:
       - "v*"
   workflow_dispatch: {}
 
+concurrency:
+  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -12,20 +19,51 @@ jobs:
   release:
     name: Create Release
     runs-on: codeberg-tiny
+    permissions:
+      contents: write # create release
     env:
       BIN_NAME: warden
     outputs:
       release_id: ${{ steps.create_release.outputs.release_id }}
       crate_version: ${{ steps.check_version.outputs.crate_version }}
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Validate Tag
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if [[ "$FORGEJO_REF" != refs/tags/* ]]; then
+            echo "Ref '$FORGEJO_REF' is not a tag ref"
+            exit 1
+          fi
+
+          status=$(curl -fsS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            "${FORGEJO_SERVER_URL}/api/v1/repos/${FORGEJO_REPOSITORY}/releases/tags/${FORGEJO_REF_NAME}" || true)
+          case "$status" in
+            404)
+              ;;
+            200)
+              echo "A release already exists for tag '${FORGEJO_REF_NAME}'"
+              exit 1
+              ;;
+            *)
+              echo "Failed to check existing release for tag '${FORGEJO_REF_NAME}' (HTTP $status)"
+              exit 1
+              ;;
+          esac
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_SERVER_URL: ${{ forgejo.server_url }}
+          FORGEJO_REPOSITORY: ${{ forgejo.repository }}
+          FORGEJO_REF: ${{ forgejo.ref }}
+          FORGEJO_REF_NAME: ${{ forgejo.ref_name }}
+
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
           ref: ${{ forgejo.ref }}
-
-      - name: Install system dependencies
-        shell: bash
-        run: .forgejo/scripts/install-deps.sh jq
+          persist-credentials: false
 
       - name: Check Version
         id: check_version
@@ -37,33 +75,48 @@ jobs:
           echo "Detected version: $version"
           [[ "v$version" == "${{ forgejo.ref_name }}" ]]
 
-      - name: Create release
+      - name: Install System Dependencies
+        shell: bash
+        run: .forgejo/scripts/install-deps.sh jq
+
+      - name: Create Release
         id: create_release
         shell: bash
         run: |
           set -euxo pipefail
           RELEASE_ID=$(curl -fsSL \
             -X POST \
-            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+            -H "Authorization: token $FORGEJO_TOKEN" \
             -H "Content-Type: application/json" \
-            "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases" \
+            "${FORGEJO_SERVER_URL}/api/v1/repos/${FORGEJO_REPOSITORY}/releases" \
             -d "{
               \"tag_name\": \"${{ forgejo.ref_name }}\",
-              \"name\": \"v${{ steps.check_version.outputs.crate_version }}\",
+              \"name\": \"v${OUTPUTS_CRATE_VERSION}\",
               \"draft\": true,
               \"prerelease\": false
             }" | jq -r '.id')
           echo "release_id=$RELEASE_ID" >> "$FORGEJO_OUTPUT"
           echo "Created release id: $RELEASE_ID"
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_SERVER_URL: ${{ forgejo.server_url }}
+          FORGEJO_REPOSITORY: ${{ forgejo.repository }}
+          OUTPUTS_CRATE_VERSION: ${{ steps.check_version.outputs.crate_version }}
 
   build_release_assets:
     name: Build and Upload (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
     needs: release
+    permissions:
+      contents: write # upload release assets
     env:
       BIN_NAME: warden
       CRATE_VERSION: ${{ needs.release.outputs.crate_version }}
       RELEASE_ID: ${{ needs.release.outputs.release_id }}
+      TARGET: ${{ matrix.target }}
+      CARGO_TARGET: ${{ matrix.cargo_target }}
+      ARTIFACT_EXT: ${{ matrix.artifact_ext }}
+      EXTRA_DEPS: ${{ matrix.extra_deps }}
     strategy:
       fail-fast: false
       matrix:
@@ -84,13 +137,15 @@ jobs:
             artifact_ext: zip
             extra_deps: "mingw-w64 zip"
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
           ref: ${{ forgejo.ref }}
+          persist-credentials: false
 
-      - name: Cache Rust build artifacts
-        uses: https://data.forgejo.org/actions/cache@v5
+      - name: Cache Rust Build Artifacts
+        uses: https://data.forgejo.org/actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/bin/
@@ -100,70 +155,81 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.cargo_target }}
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
-        run: .forgejo/scripts/install-deps.sh pkg-config perl ${{ matrix.extra_deps }}
+        run: .forgejo/scripts/install-deps.sh pkg-config perl $EXTRA_DEPS
 
       - name: Install Rust
         shell: bash
         run: .forgejo/scripts/install-rust.sh nightly
 
-      - name: Add target
+      - name: Add Target
         shell: bash
         run: |
           set -euxo pipefail
           . "$HOME/.cargo/env"
-          rustup +nightly target add ${{ matrix.cargo_target }}
+          rustup +nightly target add $CARGO_TARGET
 
-      - name: Build release binary
+      - name: Build Release Binary
         shell: bash
         run: |
           set -euxo pipefail
           . "$HOME/.cargo/env"
-          cargo +nightly build --locked --release --bin "$BIN_NAME" --features vendored --target ${{ matrix.cargo_target }}
-          ls -l "target/${{ matrix.cargo_target }}/release/${BIN_NAME}"* || true
+          cargo +nightly build --locked --release --bin "$BIN_NAME" --features vendored --target $CARGO_TARGET
+          ls -l "target/${CARGO_TARGET}/release/${BIN_NAME}"* || true
 
-      - name: Package binary (tar.gz)
+      - name: Package Binary (tar.gz)
         if: matrix.artifact_ext == 'tar.gz'
         shell: bash
         run: |
           set -euxo pipefail
-          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.tar.gz"
-          tar czf "$ARCHIVE" -C "target/${{ matrix.cargo_target }}/release" "$BIN_NAME"
+          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${TARGET}.tar.gz"
+          tar czf "$ARCHIVE" -C "target/${CARGO_TARGET}/release" "$BIN_NAME"
           echo "ARCHIVE=$ARCHIVE" >> "$FORGEJO_ENV"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
 
-      - name: Package binary (zip)
+      - name: Package Binary (zip)
         if: matrix.artifact_ext == 'zip'
         shell: bash
         run: |
           set -euxo pipefail
-          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${{ matrix.target }}.zip"
-          (cd "target/${{ matrix.cargo_target }}/release" && zip -9 -r "$FORGEJO_WORKSPACE/$ARCHIVE" "${BIN_NAME}.exe")
+          ARCHIVE="${BIN_NAME}-${CRATE_VERSION}-${TARGET}.zip"
+          (cd "target/${CARGO_TARGET}/release" && zip -9 -r "$FORGEJO_WORKSPACE/$ARCHIVE" "${BIN_NAME}.exe")
           echo "ARCHIVE=$ARCHIVE" >> "$FORGEJO_ENV"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
           cat "${ARCHIVE}.sha256"
 
-      - name: Upload release assets
+      - name: Upload Release Assets
         shell: bash
         run: |
           set -euxo pipefail
-          API="${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/${RELEASE_ID}/assets"
+          API="${FORGEJO_SERVER_URL}/api/v1/repos/${FORGEJO_REPOSITORY}/releases/${RELEASE_ID}/assets"
           # upload archive
-          curl -fsSL -X POST -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" "$API" -F "attachment=@${ARCHIVE};type=application/octet-stream"
+          curl -fsSL -X POST -H "Authorization: token $FORGEJO_TOKEN" "$API" -F "attachment=@${ARCHIVE};type=application/octet-stream"
           # upload sha256
-          curl -fsSL -X POST -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" "$API" -F "attachment=@${ARCHIVE}.sha256;type=text/plain"
+          curl -fsSL -X POST -H "Authorization: token $FORGEJO_TOKEN" "$API" -F "attachment=@${ARCHIVE}.sha256;type=text/plain"
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_SERVER_URL: ${{ forgejo.server_url }}
+          FORGEJO_REPOSITORY: ${{ forgejo.repository }}
 
   publish_release:
     name: Publish Release
     runs-on: codeberg-tiny
     needs: [release, build_release_assets]
+    permissions:
+      contents: write # publish release
     steps:
-      - name: Publish release (unmark draft)
+      - name: Publish Release
         shell: bash
         run: |
           set -euxo pipefail
-          API="${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/${{ needs.release.outputs.release_id }}"
-          curl -fsSL -X PATCH -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" -H "Content-Type: application/json" "$API" -d '{"draft": false}'
-          echo "Published release id: ${{ needs.release.outputs.release_id }}"
+          API="${FORGEJO_SERVER_URL}/api/v1/repos/${FORGEJO_REPOSITORY}/releases/${OUTPUTS_RELEASE_ID}"
+          curl -fsSL -X PATCH -H "Authorization: token $FORGEJO_TOKEN" -H "Content-Type: application/json" "$API" -d '{"draft": false}'
+          echo "Published release id: ${OUTPUTS_RELEASE_ID}"
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_SERVER_URL: ${{ forgejo.server_url }}
+          FORGEJO_REPOSITORY: ${{ forgejo.repository }}
+          OUTPUTS_RELEASE_ID: ${{ needs.release.outputs.release_id }}

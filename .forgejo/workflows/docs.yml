@@ -1,9 +1,15 @@
 name: Documentation
 on:
-  pull_request:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,12 +19,14 @@ jobs:
     name: Docs
     runs-on: codeberg-medium
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Cache Rust build artifacts
-        uses: https://data.forgejo.org/actions/cache@v5
+      - name: Cache Rust Build Artifacts
+        uses: https://data.forgejo.org/actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/bin/
@@ -28,14 +36,14 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
         run: .forgejo/scripts/install-deps.sh pkg-config
 
       - name: Install Rust
         shell: bash
         run: .forgejo/scripts/install-rust.sh nightly rust-docs
-      - name: Build docs (deny warnings)
+      - name: Build Docs
         shell: bash
         env:
           RUSTDOCFLAGS: -D warnings

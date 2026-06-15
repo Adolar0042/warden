@@ -33,7 +33,7 @@ serde_with = "3.20"
 serde_regex = "1.1"
 url = "2.5"
 toml = "1.1"
-git2 = "0.20"
+git2 = "0.21"
 dialoguer = { version = "0.12", features = ["fuzzy-select"] }
 crossterm = "0.29"
 ctrlc = "3.5"

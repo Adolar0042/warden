@@ -5,6 +5,13 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -12,15 +19,20 @@ jobs:
   build:
     name: Build Release
     runs-on: codeberg-medium
+    permissions:
+      contents: read # checkout
+      actions: write # upload-artifact
     env:
       BIN_NAME: warden
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Cache Rust build artifacts
-        uses: https://data.forgejo.org/actions/cache@v5
+      - name: Cache Rust Build Artifacts
+        uses: https://data.forgejo.org/actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/bin/
@@ -30,13 +42,14 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
         run: .forgejo/scripts/install-deps.sh jq pkg-config perl
 
       - name: Install Rust
         shell: bash
         run: .forgejo/scripts/install-rust.sh nightly
+
       - name: Get Version
         shell: bash
         run: |
@@ -49,7 +62,7 @@ jobs:
           echo "CRATE_VERSION=$version" >> "$FORGEJO_ENV"
           echo "Detected version: $version"
 
-      - name: Build release binary
+      - name: Build Release Binary
         shell: bash
         run: |
           set -euxo pipefail
@@ -57,8 +70,8 @@ jobs:
           cargo +nightly build --locked --release --bin "$BIN_NAME" --features vendored
           ls -l "target/release/${BIN_NAME}"* || true
 
-      - name: Upload release binary
-        uses: https://data.forgejo.org/forgejo/upload-artifact@v4
+      - name: Upload Release Binary
+        uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4
         with:
           name: ${{ env.BIN_NAME }}-linux-v${{ env.CRATE_VERSION }}
           path: target/release/${{ env.BIN_NAME }}

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use config::{ConfigError, Source, Value};
+use git2::{Config as Git2Config, Repository};
 
 /// Git-based configuration source for OAuth provider configuration.
 ///
@@ -52,7 +53,7 @@ impl GitConfigSource {
         }
     }
 
-    /// Repository-local `.git/config` (discovered from current working dir)
+    /// Repository-local `.git/config`
     pub const fn repo() -> Self {
         Self {
             mode: GitSourceMode::RepoLocal,
@@ -70,8 +71,6 @@ impl Source for GitConfigSource {
         reason = "This is a single-source config reader, so it has to do a lot of work"
     )]
     fn collect(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        use git2::{Config as Git2Config, Repository};
-
         // get appropriate Git configuration
         let git_cfg_opt = match self.mode {
             GitSourceMode::GlobalAndSystem => Git2Config::open_default().ok(),
@@ -92,7 +91,7 @@ impl Source for GitConfigSource {
 
         if let Ok(mut entries) = git_cfg.entries(Some("credential.*.oauth*")) {
             while let Some(Ok(entry)) = entries.next() {
-                let Some(full_key) = entry.name() else {
+                let Ok(full_key) = entry.name() else {
                     continue;
                 };
                 let full_key = full_key.to_lowercase();
@@ -195,7 +194,7 @@ impl Source for GitConfigSource {
         }
 
         let oauth_only = git_cfg.get_entry("warden.oauth-only").ok().and_then(|e| {
-            e.value().map(|v| {
+            e.value().ok().map(|v| {
                 let vl = v.to_ascii_lowercase();
                 matches!(vl.as_str(), "1" | "true" | "yes" | "on")
             })
@@ -204,9 +203,9 @@ impl Source for GitConfigSource {
         let port = git_cfg
             .get_entry("warden.port")
             .ok()
-            .and_then(|e| e.value().and_then(|v| v.parse::<u16>().ok()));
+            .and_then(|e| e.value().ok().and_then(|v| v.parse::<u16>().ok()));
 
-        if providers_table.is_empty() && oauth_only.is_none() {
+        if providers_table.is_empty() && oauth_only.is_none() && port.is_none() {
             return Ok(HashMap::new());
         }
 

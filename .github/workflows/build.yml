@@ -5,6 +5,13 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -13,25 +20,33 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable
+      - run: rustup default stable
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: cargo check --features vendored
 
   format:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install nightly
       - run: rustup override set nightly
       - run: rustup component add rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: cargo fmt --check
 
   test:
     name: Test Suite and Build
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # checkout
+      actions: write # upload-artifact
     strategy:
       matrix:
         include:
@@ -44,9 +59,12 @@ jobs:
     env:
       BIN_NAME: warden
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install nightly
+      - run: rustup default nightly
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
       - name: Get crate version from Cargo.toml
         shell: bash
@@ -63,7 +81,7 @@ jobs:
         run: cargo build --release --bin $BIN_NAME --features vendored
 
       - name: Upload release binary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ env.BIN_NAME }}-${{ matrix.os }}-v${{ env.CRATE_VERSION }}
           path: target/release/${{ env.BIN_NAME }}${{ matrix.ext }}
@@ -74,10 +92,13 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable
+      - run: rustup toolchain install nightly
+      - run: rustup default nightly
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: rustup component add clippy
       - run: cargo clippy --workspace --all-targets --features vendored -- -D warnings
       - run: cargo doc --no-deps --workspace --document-private-items --features vendored

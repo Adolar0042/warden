@@ -23,7 +23,7 @@ cargo install --git https://codeberg.org/adolar0042/warden
 cargo install --git https://codeberg.org/adolar0042/warden --features vendored
 ```
 
-**Note that git credential helpers must be installed in a directory in your PATH with the name `git-credentian-<name>`. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**
+**Note that git credential helpers must be installed in a directory in your PATH with the name `git-credential-<name>`. `~/.cargo/bin/` often isn't in PATH when used by GUI applications.**
 To ensure it works as expected, additionally link it to a standard location (in this example linux)
 
 ```bash

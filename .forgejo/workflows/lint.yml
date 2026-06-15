@@ -5,6 +5,13 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -13,18 +20,20 @@ jobs:
     name: Format
     runs-on: codeberg-small
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
         run: .forgejo/scripts/install-deps.sh
 
       - name: Install Rust (nightly + rustfmt)
         shell: bash
         run: .forgejo/scripts/install-rust.sh nightly rustfmt
-      - name: Check formatting
+      - name: Check Formatting
         shell: bash
         run: |
           set -euxo pipefail
@@ -35,12 +44,14 @@ jobs:
     name: Check
     runs-on: codeberg-medium
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Cache Rust build artifacts
-        uses: https://data.forgejo.org/actions/cache@v5
+      - name: Cache Rust Build Artifacts
+        uses: https://data.forgejo.org/actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/bin/
@@ -50,7 +61,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
         run: .forgejo/scripts/install-deps.sh jq pkg-config perl
 
@@ -58,7 +69,7 @@ jobs:
         shell: bash
         run: .forgejo/scripts/install-rust.sh stable
 
-      - name: Cargo check
+      - name: Cargo Check
         shell: bash
         run: |
           set -euxo pipefail
@@ -69,12 +80,14 @@ jobs:
     name: Clippy
     runs-on: codeberg-medium
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Cache Rust build artifacts
-        uses: https://data.forgejo.org/actions/cache@v5
+      - name: Cache Rust Build Artifacts
+        uses: https://data.forgejo.org/actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/bin/
@@ -84,14 +97,14 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install system dependencies
+      - name: Install System Dependencies
         shell: bash
         run: .forgejo/scripts/install-deps.sh pkg-config
 
       - name: Install Rust
         shell: bash
         run: .forgejo/scripts/install-rust.sh nightly clippy
-      - name: Run clippy (deny warnings)
+      - name: Run Clippy
         shell: bash
         run: |
           set -euxo pipefail

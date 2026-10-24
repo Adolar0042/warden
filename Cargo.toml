@@ -39,7 +39,7 @@ crossterm = "0.29"
 ctrlc = "3.5"
 chrono = "0.4"
 fuzzy-matcher = "0.3"
-zeroize = { version = "1.8", features = ["derive"] }
+zeroize = { version = "1.8", features = ["derive", "serde"] }
 qr2term = "0.3"
 qrcode = { version = "0.14", default-features = false }
 clap-verbosity-flag = { version = "3.0", default-features = false, features = [
@@ -122,7 +122,7 @@ too_many_lines = "allow"
 # it can't detect if the code has a condition to stop the iterator
 maybe_infinite_iter = "allow"
 # we have dependencies, so this happens
-multiple-crate-versions = "allow"
+multiple_crate_versions = "allow"
 
 ## DISABLED
 

@@ -316,8 +316,8 @@ mod tests {
             &Value::String("user@example.com".to_string())
         );
 
-        // Introduce a conflict: a value at 'user' while we already need a table at
-        // 'user'
+        // Introduce a conflict: a value at 'user' while we already need a table
+        // at 'user'
         let mut bad = cfgs.clone();
         bad.map.insert("user".into(), "Someone".into());
         assert!(
@@ -328,13 +328,13 @@ mod tests {
 
     #[test]
     fn profile_apply_empty_ok() {
-        // Applying an empty profile should fail gracefully only at git repo discovery.
-        // We can't guarantee a repo is available in tests, so just ensure method exists
-        // and returns Result.
+        // Applying an empty profile should fail gracefully only at git repo
+        // discovery. We can't guarantee a repo is available in tests, so just
+        // ensure method exists and returns Result.
         let p = Profile::default();
         let res = p.apply();
-        // Either ok (if tests are run inside a git repo) or an error about not being in
-        // a repo.
+        // Either ok (if tests are run inside a git repo) or an error about not
+        // being in a repo.
         if let Err(e) = res {
             // acceptable error
             let msg = e.to_string();

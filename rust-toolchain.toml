@@ -1,2 +1,1 @@
-toolchain.channel = "stable"
-toolchain.components = ["rust-analyzer"]
+toolchain.channel = "nightly"

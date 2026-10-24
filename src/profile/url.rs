@@ -413,8 +413,9 @@ impl Url {
                     .ok_or_else(|| anyhow!("Could not find repository name from the URL: {url}"))?,
             ),
             raw: match scheme {
-                // HTTPS URLs can be used directly on cloning, so we prefer it than inferred one.
-                // SSH URLs are not; Git only accepts 'git@github.com:org/repo.git' style.
+                // HTTPS URLs can be used directly on cloning, so we prefer it
+                // than inferred one. SSH URLs are not; Git only accepts
+                // 'git@github.com:org/repo.git' style.
                 Scheme::Https => Some(url.to_string()),
                 Scheme::Ssh => None,
             },

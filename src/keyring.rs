@@ -188,9 +188,9 @@ pub fn store_keyring_token(credential: &str, host: &str, token: &Token) -> Resul
 
     match OS {
         "linux" | "freebsd" | "openbsd" | "netbsd" | "dragonfly" => {
-            // Remove label entry, it is only set in the first place to change the name
-            // of the entry in the keyring but unfortunately also shows up in the
-            // attributes
+            // Remove label entry, it is only set in the first place to change
+            // the name of the entry in the keyring but unfortunately also shows
+            // up in the attributes
             entry.update_attributes(&HashMap::from([(
                 "application",
                 format!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).as_str(),

@@ -141,8 +141,9 @@ async fn wait_for_code(
             let mut request_line = String::new();
             reader.read_line(&mut request_line).await?;
             // empty line, continue reading until we get a non-empty line
-            // this can happen when the browser (Firefox) first asks the user if they want
-            // to allow the connection to a local server from the page they're on
+            // this can happen when the browser (Firefox) first asks the user if
+            // they want to allow the connection to a local server from the page
+            // they're on
             if request_line.trim().is_empty() {
                 continue;
             }
@@ -150,9 +151,9 @@ async fn wait_for_code(
             let mut parts = request_line.split_whitespace();
             let _method = parts.next();
             let Some(redirect_url) = parts.next() else {
-                // malformed request, but we still respond so the user isn't left hanging
-                // not sure how this would happen under normal circumstances,
-                // but better safe than sorry
+                // malformed request, but we still respond so the user isn't
+                // left hanging not sure how this would happen under normal
+                // circumstances, but better safe than sorry
                 write_response_with_status(
                     &mut stream,
                     "400 Bad Request",

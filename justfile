@@ -36,6 +36,7 @@ prep-release:
     cargo build --release --workspace
     cargo clippy --workspace --all-targets -- -D warnings
     typos
+    cargo audit
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --document-private-items
 
 release VERSION:

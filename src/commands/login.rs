@@ -17,19 +17,35 @@ use crate::utils::{config_dir, select_index};
 
 #[instrument]
 pub async fn login(force_device: bool) -> Result<()> {
+    login_for(force_device, None, None).await
+}
+
+#[instrument]
+pub async fn login_for(
+    force_device: bool,
+    requested_credential: Option<&str>,
+    requested_host: Option<&str>,
+) -> Result<()> {
     let oauth_config = load_cfg!(OAuthConfig)?;
     let mut hosts_config = load_cfg!(Hosts)?;
     let _ = ctrlc::set_handler(|| {
         let _ = execute!(stderr(), Show);
         exit(130);
     });
-    let credential_name: String = Input::with_theme(&InputTheme::default())
-        .with_prompt("Credential Name")
-        .default("oauth".to_string())
-        .interact_text()
-        .context("Failed to read credential name")?;
-    let credential_name = credential_name.trim();
-    if credential_name.is_empty() {
+    let credential_name = if let Some(credential) = requested_credential {
+        let credential = credential.trim().to_string();
+        eprintln!("Logging in for credential '{credential}'...");
+        credential
+    } else {
+        Input::with_theme(&InputTheme::default())
+            .with_prompt("Credential Name")
+            .default("oauth".to_string())
+            .interact_text()
+            .context("Failed to read credential name")?
+            .trim()
+            .to_string()
+    };
+    if credential_name.trim().is_empty() {
         bail!("Credential name cannot be empty!");
     }
     let mut providers = oauth_config.providers.keys().collect::<Vec<_>>();
@@ -43,10 +59,19 @@ pub async fn login(force_device: bool) -> Result<()> {
         );
     }
     providers.sort();
-    let selection = select_index(&providers, "Host").context("Failed to select host")?;
+    let provider = if let Some(host) = requested_host {
+        oauth_config
+            .providers
+            .get_key_value(host)
+            .map(|(provider, _)| provider)
+            .with_context(|| format!("No OAuth provider configuration found for {host}"))?
+    } else {
+        let selection = select_index(&providers, "Host").context("Failed to select host")?;
+        providers[selection]
+    };
 
     // if host already has a credential under that name, ask for confirmation
-    if hosts_config.has_credential(providers[selection], credential_name) {
+    if hosts_config.has_credential(provider, &credential_name) {
         let _ = ctrlc::set_handler(|| {
             let _ = execute!(stderr(), Show);
             exit(130);
@@ -54,8 +79,8 @@ pub async fn login(force_device: bool) -> Result<()> {
         eprintln!(
             "{}",
             format!(
-                "A credential with the name '{}' already exists for host '{}'.",
-                credential_name, providers[selection]
+                "A credential with the name '{credential_name}' already exists for host \
+                 '{provider}'."
             )
             .bold()
         );
@@ -69,14 +94,14 @@ pub async fn login(force_device: bool) -> Result<()> {
         }
     }
 
-    let token = get_access_token(&oauth_config, providers[selection], force_device)
+    let token = get_access_token(&oauth_config, provider, force_device)
         .await
         .context("Failed to get access token")?;
 
-    store_keyring_token(credential_name, providers[selection], &token)
+    store_keyring_token(&credential_name, provider, &token)
         .context("Failed to store token in keyring")?;
     hosts_config
-        .add_credential(providers[selection], credential_name)
+        .add_credential(provider, &credential_name)
         .context("Failed to add credential to hosts state")?;
     Ok(())
 }

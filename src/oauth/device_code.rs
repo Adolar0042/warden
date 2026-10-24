@@ -125,7 +125,8 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
                     token.access_token().secret().clone(),
                     token.refresh_token().map(|s| s.secret().clone()),
                     expires_at,
-                );
+                )
+                .context("Failed to protect token in memory")?;
                 return Ok(token);
             },
             Err(RequestTokenError::Parse(_, serde_error))
@@ -200,7 +201,8 @@ pub async fn exchange_device_code(provider: &ProviderConfig) -> Result<Token> {
             .and_then(Value::as_u64)
             .map(Duration::from_secs);
         let expires_at = expires_in.map(|d| Utc::now() + d);
-        let token = Token::new(access_token, refresh_token, expires_at);
+        let token = Token::new(access_token, refresh_token, expires_at)
+            .context("Failed to protect token in memory")?;
 
         return Ok(token);
     }

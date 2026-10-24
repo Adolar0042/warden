@@ -3497,7 +3497,7 @@ dependencies = [
 
 [[package]]
 name = "warden"
-version = "1.2.10"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "apple-native-keyring-store",
@@ -3513,6 +3513,7 @@ dependencies = [
  "dialoguer",
  "dirs",
  "fuzzy-matcher",
+ "getrandom 0.4.3",
  "git2",
  "keyring-core",
  "oauth2",

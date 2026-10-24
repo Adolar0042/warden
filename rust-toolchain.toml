@@ -1,1 +1,2 @@
 toolchain.channel = "nightly"
+toolchain.components = ["rust-analyzer", "rustfmt", "clippy"]

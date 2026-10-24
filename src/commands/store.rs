@@ -22,7 +22,8 @@ pub async fn handle_store() -> Result<()> {
             password.clone(),
             req.oauth_refresh_token,
             req.password_expiry_utc,
-        );
+        )
+        .context("Failed to protect token in memory")?;
         store_keyring_token(credential, &req.host, &token)
             .context("Failed to store token in keyring")?;
         Ok(())

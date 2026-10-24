@@ -6,33 +6,97 @@ use std::env::consts::OS;
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
 use keyring_core::Entry;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use tracing::{info, instrument};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::config::ProviderConfig;
 use crate::oauth::refresh_access_token;
 
+struct ProtectedSecret {
+    ciphertext: Zeroizing<Vec<u8>>,
+    pad: Zeroizing<Vec<u8>>,
+}
+
+impl ProtectedSecret {
+    fn new(secret: String) -> Result<Self> {
+        let mut ciphertext = Zeroizing::new(secret.into_bytes());
+        let mut pad = Zeroizing::new(vec![0; ciphertext.len()]);
+
+        // Fill once, then make sure pad is not all zeros
+        while !pad.is_empty() && pad.iter().all(|byte| *byte == 0) {
+            getrandom::fill(&mut pad).context("Failed to generate secret protection pad")?;
+        }
+
+        for (byte, pad_byte) in ciphertext.iter_mut().zip(pad.iter()) {
+            *byte ^= pad_byte;
+        }
+
+        Ok(Self { ciphertext, pad })
+    }
+
+    fn expose<R>(&self, operation: impl FnOnce(&str) -> R) -> R {
+        let plaintext = Zeroizing::new(
+            self.ciphertext
+                .iter()
+                .zip(self.pad.iter())
+                .map(|(byte, pad_byte)| byte ^ pad_byte)
+                .collect::<Vec<_>>(),
+        );
+        let plaintext =
+            str::from_utf8(&plaintext).expect("protected secret must remain valid UTF-8");
+        operation(plaintext)
+    }
+}
+
+impl Serialize for ProtectedSecret {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.expose(|plaintext| serializer.serialize_str(plaintext))
+    }
+}
+
+impl<'de> Deserialize<'de> for ProtectedSecret {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let plaintext = String::deserialize(deserializer)?;
+        Self::new(plaintext).map_err(de::Error::custom)
+    }
+}
+
+impl Zeroize for ProtectedSecret {
+    fn zeroize(&mut self) {
+        self.ciphertext.zeroize();
+        self.pad.zeroize();
+    }
+}
+
 #[expect(clippy::struct_field_names, reason = "name is intended")]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct Token {
-    access_token: String,
-    refresh_token: Option<String>,
+    access_token: ProtectedSecret,
+    refresh_token: Option<ProtectedSecret>,
     pub expires_at: Option<DateTime<Utc>>,
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.access_token.len() <= 4 {
-            write!(f, "{}", "*".repeat(self.access_token.len()))
-        } else {
-            write!(
-                f,
-                "{}{}",
-                &self.access_token[0..4],
-                "*".repeat(min(3, self.access_token.len() - 4))
-            )
-        }
+        self.access_token.expose(|access_token| {
+            if access_token.len() <= 4 {
+                write!(f, "{}", "*".repeat(access_token.len()))
+            } else {
+                write!(
+                    f,
+                    "{}{}",
+                    &access_token[0..4],
+                    "*".repeat(min(3, access_token.len() - 4))
+                )
+            }
+        })
     }
 }
 
@@ -45,37 +109,45 @@ impl Zeroize for Token {
     }
 }
 
-impl Drop for Token {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
 impl Token {
-    pub const fn new(
+    pub fn new(
         access_token: String,
         refresh_token: Option<String>,
         expires_at: Option<DateTime<Utc>>,
-    ) -> Self {
-        Self {
-            access_token,
-            refresh_token,
+    ) -> Result<Self> {
+        Ok(Self {
+            access_token: ProtectedSecret::new(access_token)?,
+            refresh_token: refresh_token.map(ProtectedSecret::new).transpose()?,
             expires_at,
-        }
+        })
     }
 
-    pub fn access_token(&self) -> &str {
-        &self.access_token
+    pub fn expose_access_token<R, O>(&self, operation: O) -> R
+    where
+        O: FnOnce(&str) -> R,
+    {
+        self.access_token.expose(operation)
+    }
+
+    pub fn expose_refresh_token<R, O>(&self, operation: O) -> Option<R>
+    where
+        O: FnOnce(&str) -> R,
+    {
+        self.refresh_token
+            .as_ref()
+            .map(|refresh_token| refresh_token.expose(operation))
+    }
+
+    pub const fn has_refresh_token(&self) -> bool {
+        self.refresh_token.is_some()
     }
 
     /// Checks if the access token is expired and refreshes it if necessary.
-    /// Returns the access token if it is valid, or refreshes it and returns the
-    /// new token.
     ///
     /// Side effect: if the token is refreshed, the current instance is updated
     /// with the new token.
     #[instrument(skip(self, provider))]
-    pub async fn access_token_checked(&mut self, provider: &ProviderConfig) -> Result<&str> {
+    pub async fn refresh_if_expired(&mut self, provider: &ProviderConfig) -> Result<()> {
         if self.is_expired() {
             info!("Access token expired, refreshing...");
             let new_token = refresh_access_token(provider, self)
@@ -83,21 +155,17 @@ impl Token {
                 .context("Failed to refresh access token")?;
             *self = new_token;
         }
-        Ok(&self.access_token)
-    }
-
-    pub fn refresh_token(&self) -> Option<&str> {
-        self.refresh_token.as_deref()
+        Ok(())
     }
 
     pub fn is_expired(&self) -> bool {
         self.expires_at.is_some_and(|expiry| expiry < Utc::now())
     }
 
-    pub fn pack(&self) -> String {
+    pub fn pack(&self) -> Result<Zeroizing<String>> {
         serde_json::to_string(self)
+            .map(Zeroizing::new)
             .context("Failed to serialize token")
-            .unwrap()
     }
 
     pub fn from_string(s: &str) -> Result<Self> {
@@ -182,8 +250,9 @@ fn get_entry(credential: &str, host: &str) -> Result<Entry> {
 
 pub fn store_keyring_token(credential: &str, host: &str, token: &Token) -> Result<()> {
     let entry = get_entry(credential, host)?;
+    let secret = token.pack()?;
     entry
-        .set_password(&token.pack())
+        .set_password(&secret)
         .context("Failed to set secret in keyring entry")?;
 
     match OS {
@@ -216,8 +285,61 @@ pub fn erase_keyring_token(credential: &str, host: &str) -> Result<()> {
 
 pub fn get_keyring_token(credential: &str, host: &str) -> Result<Token> {
     let entry = get_entry(credential, host)?;
-    let secret = entry
-        .get_password()
-        .context("Failed to retrieve token from keyring")?;
+    let secret = Zeroizing::new(
+        entry
+            .get_password()
+            .context("Failed to retrieve token from keyring")?,
+    );
     Token::from_string(&secret)
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use super::{ProtectedSecret, Token};
+
+    #[test]
+    fn protected_secret_only_exposes_plaintext_inside_closure() -> Result<()> {
+        let plaintext = "access-token-value";
+        let secret = ProtectedSecret::new(plaintext.to_string())?;
+
+        assert_ne!(
+            secret.ciphertext.as_slice(),
+            plaintext.as_bytes(),
+            "ciphertext must not contain the original plaintext"
+        );
+        secret.expose(|exposed| {
+            assert_eq!(exposed, plaintext, "exposed secret must match its input");
+        });
+
+        Ok(())
+    }
+
+    #[test]
+    fn token_serialization_round_trips_protected_secrets() -> Result<()> {
+        let token = Token::new(
+            "access-token-value".to_string(),
+            Some("refresh-token-value".to_string()),
+            None,
+        )?;
+        let packed = token.pack()?;
+        let unpacked = Token::from_string(&packed)?;
+
+        unpacked.expose_access_token(|access_token| {
+            assert_eq!(
+                access_token, "access-token-value",
+                "access token must survive serialization"
+            );
+        });
+        let refresh_token = unpacked.expose_refresh_token(|refresh_token| {
+            assert_eq!(
+                refresh_token, "refresh-token-value",
+                "refresh token must survive serialization"
+            );
+        });
+        assert!(refresh_token.is_some(), "refresh token must be present");
+
+        Ok(())
+    }
 }

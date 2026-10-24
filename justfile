@@ -21,7 +21,7 @@ alias s := sanity
     cargo bench {{ FLAGS }}
 
 @fmt *FLAGS:
-    cargo fmt {{ FLAGS }}
+    cargo +nightly fmt {{ FLAGS }}
 
 @clippy *FLAGS:
     cargo clippy {{ FLAGS }}
@@ -30,7 +30,7 @@ alias s := sanity
     cargo clippy --all --all-targets {{ FLAGS }} -- -W clippy::all -W clippy::pedantic -W clippy::nursery
 
 prep-release:
-    cargo fmt --check
+    cargo +nightly fmt --check
     cargo check --workspace
     cargo test --workspace
     cargo build --release --workspace

@@ -77,12 +77,12 @@ pub async fn exchange_auth_code_pkce(
         },
     };
     let expires_at = token.expires_in().map(|d| Utc::now() + d);
-    let token = Token::new(
+    Token::new(
         token.access_token().secret().clone(),
         token.refresh_token().map(|rt| rt.secret().clone()),
         expires_at,
-    );
-    Ok(token)
+    )
+    .context("Failed to protect token in memory")
 }
 
 /// Bind a local TCP listener on the configured (or ephemeral) port, retrying

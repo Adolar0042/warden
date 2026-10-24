@@ -48,7 +48,7 @@ pub async fn get_access_token(
 #[instrument(skip(provider, token))]
 pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> Result<Token> {
     let refresh_token = token
-        .refresh_token()
+        .expose_refresh_token(|refresh_token| RefreshToken::new(refresh_token.to_string()))
         .ok_or_else(|| anyhow!("No refresh token available"))?;
 
     let mut client = BasicClient::new(ClientId::new(provider.client_id.clone()))
@@ -64,7 +64,7 @@ pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> R
         .expect("Client should build");
 
     let token_res = client
-        .exchange_refresh_token(&RefreshToken::new((*refresh_token).to_string()))
+        .exchange_refresh_token(&refresh_token)
         .request_async(&http_client)
         .await;
     let token = match token_res {
@@ -75,11 +75,10 @@ pub async fn refresh_access_token(provider: &ProviderConfig, token: &Token) -> R
         },
     };
     let expires_at = token.expires_in().map(|d| Utc::now() + d);
-    let token = Token::new(
+    Token::new(
         token.access_token().secret().clone(),
         token.refresh_token().map(|rt| rt.secret().clone()),
         expires_at,
-    );
-
-    Ok(token)
+    )
+    .context("Failed to protect token in memory")
 }

@@ -85,7 +85,7 @@ async fn refresh_one(
         .context("Provider not found")?;
 
     if let Ok(token) = get_keyring_token(&pair.credential, &pair.host)
-        && token.refresh_token().is_some()
+        && token.has_refresh_token()
     {
         let _ = ctrlc::set_handler(|| {
             let _ = execute!(stderr(), Show);

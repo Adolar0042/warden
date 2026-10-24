@@ -185,15 +185,12 @@ impl Pattern {
             match &self.url {
                 Some(u) => {
                     Some(
-                        u.replace("{{vcs}}", &m.vcs.map(|v| v.to_string()).unwrap_or_default())
-                            .replace(
-                                "{{scheme}}",
-                                &m.scheme.map(|s| s.to_string()).unwrap_or_default(),
-                            )
+                        u.replace("{{vcs}}", &m.vcs.map_or_default(|v| v.to_string()))
+                            .replace("{{scheme}}", &m.scheme.map_or_default(|s| s.to_string()))
                             .replace("{{user}}", &m.user.clone().unwrap_or_default())
                             .replace(
                                 "{{host}}",
-                                &m.host.clone().map(|h| h.to_string()).unwrap_or_default(),
+                                &m.host.clone().map_or_default(|h| h.to_string()),
                             )
                             .replace("{{owner}}", &m.owner.clone().unwrap_or_default())
                             .replace("{{repo}}", &m.repo),

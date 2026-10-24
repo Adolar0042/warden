@@ -16,20 +16,16 @@ pub mod status;
 pub mod store;
 pub mod switch;
 
-fn emit_token_lines(username: &str, token: &Token) {
+/// Prints the token in the format expected by git
+pub fn print_token(token: &Token, username: &str) {
     println!("username={username}");
-    println!("password={}", token.access_token());
+    token.expose_access_token(|access_token| println!("password={access_token}"));
     if let Some(timestamp) = token.expires_at {
         println!("password_expiry_utc={}", timestamp.timestamp());
     }
-    if let Some(refresh_token) = token.refresh_token() {
+    let _ = token.expose_refresh_token(|refresh_token| {
         println!("oauth_refresh_token={refresh_token}");
-    }
-}
-
-/// Prints the token in the format expected by Git
-pub fn print_token(token: &Token, username: &str) {
-    emit_token_lines(username, token);
+    });
 }
 
 /// Prints the token in the format expected by Git, refreshing the token when
@@ -39,10 +35,10 @@ pub async fn print_token_checked(
     username: &str,
     provider: &ProviderConfig,
 ) -> Result<()> {
-    let _ = token
-        .access_token_checked(provider)
+    token
+        .refresh_if_expired(provider)
         .await
         .context("Failed to get access token")?;
-    emit_token_lines(username, token);
+    print_token(token, username);
     Ok(())
 }
